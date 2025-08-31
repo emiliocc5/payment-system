@@ -1,0 +1,18 @@
+app-id: payment-wallet
+version: 1.0.0
+env: local
+port: 5555
+storage:
+  dsn: postgresql://user:password@postgres-main:5432/paymentsystem
+pub:
+  rabbit-url: amqp://admin:admin123@rabbitmq:5672/
+  exchange: payments_exchange
+  routing-key: payment_initiated
+#kafka:
+ # brokers: kafka:9092
+  #topic: payment-notifications
+metrics:
+  prometheus:
+    enabled: true
+    port: 9100
+    path: /metrics
