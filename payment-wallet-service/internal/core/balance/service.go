@@ -36,7 +36,7 @@ func (s *Service) ReserveFunds(ctx context.Context, tx pgx.Tx, userID string, am
 		return domain.ErrGetBalance
 	}
 
-	if balance.Available <= amount {
+	if balance.Available < amount {
 		return domain.ErrInsufficientFunds
 	}
 

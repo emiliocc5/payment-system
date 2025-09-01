@@ -1,6 +1,8 @@
 package domain
 
 import (
+	"fmt"
+	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"time"
 )
 
@@ -34,7 +36,30 @@ type PaymentInitiatedEvent struct {
 
 type PaymentResultEvent struct{}
 
-// TODO add validations
-func (cpr *CreatePaymentRequest) Validate() error {
+func (cpr CreatePaymentRequest) Validate() error {
+	err := validation.ValidateStruct(&cpr,
+		validation.Field(&cpr.IdempotencyKey,
+			validation.Required),
+		validation.Field(&cpr.UserID,
+			validation.Required),
+		validation.Field(&cpr.Amount,
+			validation.Required,
+			validation.By(validAmount)),
+		validation.Field(&cpr.ServiceID,
+			validation.Required),
+		validation.Field(&cpr.ClientNumber,
+			validation.Required))
+	if err != nil {
+		return fmt.Errorf("error validating request %w", err)
+	}
+
+	return nil
+}
+
+func validAmount(value interface{}) error {
+	v, _ := value.(int64)
+	if v <= 0 {
+		return fmt.Errorf("amount must be greater than zero")
+	}
 	return nil
 }

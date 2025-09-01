@@ -7,7 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-//go:generate mockgen -destination=../mocks/payment_ports_mock.go -package=mocks -source=payment_ports.go
+//go:generate mockgen -destination=../mocks/payment_ports_mock.go -package=mocks -source=payments.go
 
 type PaymentRepository interface {
 	CheckIdempotency(ctx context.Context, tx pgx.Tx, idempotencyKey string) (bool, error)
