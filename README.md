@@ -5,10 +5,9 @@ Crear una plataforma que permita a los usuarios el pago de servicios con gestion
 
 ## Diseño e implementación
 
-### Arquitectura inicial
-Debido a la limitante del tiempo disponible
 
-### Documento de diseño de servicios
+
+
 
 ### Especificacion de diseño de Eventos
 

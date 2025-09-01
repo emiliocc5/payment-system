@@ -61,9 +61,42 @@ Para un primer diseño, debido a la características de los datos y las relacion
 
 - `POST /payments`
     - Crea un nuevo pago
-- `POST /health`
+    - Request
+      - Header: 
+        ```json
+        X-User-ID: a1b2c3d4-e5f6-7890-abcd-1234567890ee
+      - Body
+        ```json
+        {
+          "client_number": "987654321",
+          "service_id": "a1b2c3d4-e5f6-7890-abcd-1234567890ef",
+          "amount": 15000,
+          "idempotency_key": "unique-key-12345"
+          }
+    - Response
+      - 201 Created
+
+- `GET /health`
     - Retorna el estado del servidor.
-  
+
+## Especificacion de diseño de Eventos
+
+- PaymentInitiated: Queue de rabbit, Payment-Wallet es el encargado de publicar en él mientras que Payment-Processor será el encargado de consumirlo.
+  ```json
+  "payload" : 
+  {
+    "user_id": "XXX",
+    "client_number": "XXX",
+    "service_id":"XXX",
+    "amount": "1234",
+    "transaction_id": "XXX"
+  }
+
+- PaymentResultTopic: Tópico de kafka con 4 particiones, Payment-Processor es el encargado de publicar en él mientras que Payment-Wallet será el encargado de consumirlo.  Se implementará un leader ack, el commit del lado del consumidor sera automático ya que el procesamiento de un evento duplicado será controlado con el estado
+de la transacción en DB. Se optó por un tópico para hacer extensible el mensaje a múltiples consumidores como pueden ser un servicio de notificaciones, un servicio de analítica, un servicio de fraude, etc.
+
+
+
 ## Escalabilidad del diseño
 
 A medida que nuestro negocio escala, es necesario implementar medidas para que nuestro sistema pueda soportar la carga.
@@ -79,34 +112,29 @@ Nuestro diseño inicial quedaría de la siguiente manera:
 Si quisieramos escalar aún más, llevando el análisis un poco más cerca del mundo real, podríamos sacar las siguientes conclusiones:
 
 - Partir nuestro monolito modular en diferentes microservicios. Esto permitiría usar distintas bases de datos según el caso de uso. Deberíamos primero definir los boundaries de cada dominio. Una opción sería:
-    - **Users Service**: se encarga de dar del dominio de usuarios (alta y grafo de followers).
-    - **Tweets Service**: se encarga de la ingestión de un nuevo tweet, creación del mismo,  notificar actualización de la cache del timeline y leer tweets.
-    - **Timeline Service**: se encarga de la generación del timeline.
+    - **Payments Service**: se encarga de dar del dominio de pagos (alta y confirmación).
+    - **Balance Service**: se encarga de la gestion de un usuario, efectua las operaciones de holdeo, débito y crédito en el saldo del usuario
+    - **Processor Service**: se encarga de la comunicación con las pasarelas de pago.
 
-- Dado que no estamos frente a un caso donde nos afecte tener consistencia eventual, podríamos elegir una base de datos NoSQL, como un clúster de Cassandra o ScyllaDB, para el almacenamiento de los tweets y así poder aprovechar sus bondades para la escalabilidad.
+- Se podría implementar un servicio de caché como redis para almacenar temporalmente los id de transacción que se procesen y reducir casi a cero la posibilidad de imputar pagos duplicados (siempre que la pasarela de pago no maneje idempotencia)
+- Se podría implementar el patrón CQRS de forma de separar las escrituras de las lecturas, implementando una base de datos de tipo full text search aprovechando las bondades de la misma a la hora de presentar los pagos al usuario.
+- Se podría implementar el patron SAGA con coreografía, usando eventos apoyados en el patron CDC para poder orquestar la transacción.
+- Se podría implementar un sistema de notificaciones al usuario, a fin de notificarle el estado de los pagos realizados.
 
-- Podríamos almacenar el timeline en una cache, por ej Redis, para optimizar la respuesta a las consultas del mismo.
-
-Podemos bocetar un diagrama simplifado del diseño final de la siguiente manera:
+Podemos bocetar un diagrama simplificado del diseño final de la siguiente manera:
 
 ![final](./diagrams/final.png)
 
 Una explicación sencilla podría ser:
 
-- **Ingestión de un nuevo tweet**
-    - Se crea un nuevo tweet en Cassandra.
+- **Creación de un pago**
+    - Se crea un nuevo pago en postgresql.
+    - Se invoca al servicio de balance para holdear el saldo
+    - Se actualiza el estado en la DB de la transacción a Autorizada
     - Se publica un nuevo mensaje notificando el evento en Kafka
-    - Se actualiza el timeline en Redis para el usuario correspondiente.
+    - El mensaje es recibido por el payment processor que procesa contra el proveedor.
+    - Se informa el resultado en Kafka
+    - Se actualiza el estado de la DB
+    - Se publica un nuevo mensaje notificando el evento en Kafka, lo que dispara notificaciones al usuario y persistencia en elasticsearch
 
-- **Timeline**
-    - Se busca primero en Redis si existe el timeline correspondiente o si es válido.
-    - Si no se encuentra en Redis, se consulta al servicio de Tweets para obtener los datos de Cassandra y actualizar Redis.
-    - Si hay un evento de follow/unfollow, se actualiza el timeline.
-
-- **Follow/Unfollow**
-    - Se actualiza PostgreSQL.
-    - Se notifica el evento por Kafka.
-
-- **Creación de nuevo usuario**
-    - Se inserta un nuevo item en PostgreSQL.
-    - Se notifica el evento por Kafka para que se creen un timeline en Redis.
+**Se mantienen en el diagrama tanto prometheus como grafana para observabilidad, no se agregan flechas para no complejizarlo**
