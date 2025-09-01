@@ -185,3 +185,8 @@ El proyecto sigue **Clean Architecture** con las siguientes capas:
 
 ## Pendientes
 
+1. Código de processor-service
+2. Implementación de métricas de negocio
+3. Mayor cobertura de unit testing
+4. Linter
+5.
