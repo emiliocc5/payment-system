@@ -8,7 +8,7 @@ Crear una plataforma que permita a los usuarios el pago de servicios con gestion
 - [Diseño](design.md)
 - [Implementación](implementation.md)
 
-## ## Instalación y Ejecución
+## Instalación y Ejecución
 
 ### Prerrequisitos
 - Docker
@@ -34,7 +34,6 @@ docker compose down
 - **Prometheus**: http://localhost:9090
 - **Kafka UI**: http://localhost:8080
 - **Payment Wallet API**: http://localhost:5555
-
 
 
 ---
