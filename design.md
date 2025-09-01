@@ -95,7 +95,39 @@ Para un primer diseño, debido a la características de los datos y las relacion
 - PaymentResultTopic: Tópico de kafka con 4 particiones, Payment-Processor es el encargado de publicar en él mientras que Payment-Wallet será el encargado de consumirlo.  Se implementará un leader ack, el commit del lado del consumidor sera automático ya que el procesamiento de un evento duplicado será controlado con el estado
 de la transacción en DB. Se optó por un tópico para hacer extensible el mensaje a múltiples consumidores como pueden ser un servicio de notificaciones, un servicio de analítica, un servicio de fraude, etc.
 
+## Estrategia de Manejo de Errores
+Se identifican en el diseño los siguientes escenarios de falla
+![failures](./diagrams/failures.png)
 
+- Escenario: 1 
+  - Falla: Congelamiento de balance de usuario 
+  - Como se comporta el sistema: Se muestra una mensaje de error al usuario de manera sincrónica 
+  - Reintento: De parte del usuario
+- Escenario: 2 
+  - Falla: Creación de la transacción 
+  - Como se comporta el sistema: Rollback del congelamiento del balance 
+  - Reintento: De parte del usuario
+- Escenario: 3 
+  - Falla: Publicación del mensaje en queue 
+  - Como se comporta el sistema: El usuario verá el pago en un estado pendiente. La transaccion queda en estado pendiente, se requiere acción manual 
+  - Reintento: no hay
+- Escenario: 4 
+  - Falla: ProcessorService 
+  - Como se comporta el sistema: El sistema seguirá encolando solicitudes de pago hasta que processorService vuelva a estar activo 
+  - Reintento: No es necesario, cuando el servicio vuelva a estar activo desencolará las solicitudes
+- Escenario: 5 
+  - Falla: Comunicación con pasarela de pagos 
+  - Como se comporta el sistema: El sistema invocará a la pasarela de pagos, la cual es probable que no este disponible 
+  - Reintento: reintentos de la aplicación con backoff exponencial y en caso de no obtener respuesta satisfactoria, el mensaje se mantendrá encolado y volverá a estar visible para ser nuevamente consumido.
+- Escenario: 6 
+  - Falla: Publicación del mensaje en tópico 
+  - Como se comporta el sistema: El sistema invocará a la pasarela de pagos, la cual es probable que no este disponible 
+  - Reintento: reintentos de la aplicación con backoff exponencial y en caso de no obtener respuesta satisfactoria, el mensaje se mantendrá encolado y volverá a estar visible para ser nuevamente consumido
+- Escenario: 7 
+  - Falla: Procesamiento asincrónico en Payment-Wallet Service 
+  - Como se comporta el sistema: Si por alguna razón dicho microservicio falla, al momento de recuperarse volverá a procesar los mensajes que esten en el tópico y
+no se hayan confirmado mediante un commit automático 
+  - Reintento: En caso de fallo, se reintentará procesar la confirmación con un backoff exponencial
 
 ## Escalabilidad del diseño
 
