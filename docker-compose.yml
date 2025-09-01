@@ -1,0 +1,171 @@
+version: '3.8'
+
+services:
+  postgres-main:
+    image: postgres:17.0-alpine
+    container_name: postgres-main
+    environment:
+      POSTGRES_DB: paymentsystem
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_main_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d paymentsystem"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - payment-network
+
+  rabbitmq:
+    image: rabbitmq:4.0-management-alpine
+    container_name: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin123
+      RABBITMQ_DEFAULT_VHOST: /
+    ports:
+      - "5672:5672"
+      - "15672:15672"   # Management UI
+      - "15692:15692"   # Prometheus metrics
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq-config/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+      - ./rabbitmq-config/enabled_plugins:/etc/rabbitmq/enabled_plugins
+      - ./rabbitmq-config/init_queue.sh:/docker-entrypoint-init.d/init_queue.sh
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - payment-network
+
+  # Kafka
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CLUSTER_ID: "q1Sh-9_ISia_zwGINzRvyQ"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "9092"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - payment-network
+
+  # Kafka UI
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    container_name: kafka-ui
+    environment:
+      KAFKA_CLUSTERS_0_NAME: payment-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    ports:
+      - "8080:8080"
+    depends_on:
+      - kafka
+    networks:
+      - payment-network
+
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus-config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    depends_on:
+      - rabbitmq
+      - kafka
+    networks:
+      - payment-network
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana-config/datasources:/etc/grafana/provisioning/datasources
+      - ./grafana-config/dashboards:/etc/grafana/provisioning/dashboards
+    depends_on:
+      - prometheus
+    networks:
+      - payment-network
+
+  # Payment Wallet Service
+  payment-wallet-service:
+    build:
+      context: ./payment-wallet-service
+      dockerfile: Dockerfile
+    container_name: payment-wallet-service
+    ports:
+      - "5555:5555"
+    environment:
+      - CONFIG_PATH=/configuration/config.yaml
+    volumes:
+      - ./payment-wallet-service/configuration/config-docker.yaml:/configuration/config.yaml
+    depends_on:
+      postgres-main:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5555/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - payment-network
+
+volumes:
+  postgres_main_data:
+  rabbitmq_data:
+  kafka_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  payment-network:
+    driver: bridge
