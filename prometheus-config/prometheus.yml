@@ -15,19 +15,9 @@ scrape_configs:
     metrics_path: /metrics
     scrape_interval: 5s
 
-  - job_name: 'payment-processor-service'
-    static_configs:
-      - targets: ['payment-processor-service:9101']
-    metrics_path: /metrics
-    scrape_interval: 5s
-
   - job_name: 'postgres-main'
     static_configs:
       - targets: ['postgres-exporter-main:9187']
-
-  - job_name: 'postgres-secondary'
-    static_configs:
-      - targets: ['postgres-exporter-secondary:9187']
 
   - job_name: 'rabbitmq'
     static_configs:

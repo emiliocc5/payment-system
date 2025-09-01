@@ -152,6 +152,7 @@ Si quisieramos escalar aún más, llevando el análisis un poco más cerca del m
 - Se podría implementar el patrón CQRS de forma de separar las escrituras de las lecturas, implementando una base de datos de tipo full text search aprovechando las bondades de la misma a la hora de presentar los pagos al usuario.
 - Se podría implementar el patron SAGA con coreografía, usando eventos apoyados en el patron CDC para poder orquestar la transacción.
 - Se podría implementar un sistema de notificaciones al usuario, a fin de notificarle el estado de los pagos realizados.
+- Se podría implementar un circuit breaker detectando si la pasarela de pagos está caida a fin de notificarle al usuario que no podremos procesar su pago de manera inmediata y brindarle la posibilidad de programar el mismo para mas tarde
 
 Podemos bocetar un diagrama simplificado del diseño final de la siguiente manera:
 

@@ -53,11 +53,15 @@ func (s *Service) Create(ctx context.Context, request domain.CreatePaymentReques
 		}
 
 		if exists {
+			//Publish error business metric here
+
 			return nil
 		}
 
 		err = s.balanceService.ReserveFunds(ctx, *tx, request.UserID, request.Amount)
 		if err != nil {
+			//Publish error business metric here
+
 			return err
 		}
 
@@ -81,6 +85,8 @@ func (s *Service) Create(ctx context.Context, request domain.CreatePaymentReques
 
 			return domain.ErrCreatePayment
 		}
+
+		//Publish success business metric here
 
 		paymentInitiatedEvent := &domain.PaymentInitiatedEvent{
 			UserID:        payment.UserID,

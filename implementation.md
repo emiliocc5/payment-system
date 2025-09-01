@@ -12,6 +12,7 @@ payment-platform/
 ├── Makefile
 ├── README.md
 ├── design.md
+├── implementation.md
 ├── docker-compose.yml
 ├── grafana-config/
 │   └── datasources/
@@ -184,9 +185,11 @@ El proyecto sigue **Clean Architecture** con las siguientes capas:
 - **Health Checks**: Endpoints para verificación de estado de servicios
 
 ## Pendientes
+Debido a que el tiempo para realizar el ejercicio era limitado, prioricé entregar menos funcionalidad pero código limpio 
+y escalable, los próximos pasos a implementar serán
 
-1. Código de processor-service
-2. Implementación de métricas de negocio
-3. Mayor cobertura de unit testing
-4. Linter
-5.
+1. Código de processor-service para recibir eventos de rabbit y procesar contra pasarela de pagos
+2. Código en payment-wallet para procesar eventos de kafka
+3. Implementación de métricas de negocio
+4. Mayor cobertura de unit testing
+5. Linter
