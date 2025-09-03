@@ -3,14 +3,19 @@ package http
 import (
 	"context"
 	"fmt"
-	"log/slog"
-
 	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/core/ports"
+	"github.com/emiliocc5/payment-system/payment-wallet-service/pkg/metrics"
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"log/slog"
 
 	"net/http"
 	"sync/atomic"
 	"time"
+)
+
+var (
+	_healthy int32
 )
 
 type ServerConfig struct {
@@ -28,10 +33,6 @@ type Server struct {
 	balanceService ports.BalanceService
 }
 
-var (
-	_healthy int32
-)
-
 func NewServer(cfg *ServerConfig, logger *slog.Logger) *Server {
 	return &Server{
 		port:           cfg.Port,
@@ -44,8 +45,12 @@ func NewServer(cfg *ServerConfig, logger *slog.Logger) *Server {
 
 func (s *Server) registerHandlers() {
 	sub := s.router.PathPrefix("/v1").Subrouter()
+	sub.Handle("/metrics", promhttp.Handler()).Methods(http.MethodGet)
 	sub.HandleFunc("/health", s.healthHandler).Methods(http.MethodGet)
+
 	sub.HandleFunc("/payments", s.createPaymentHandler).Methods(http.MethodPost)
+
+	s.handler = metrics.Middleware(s.router, *s.logger)
 }
 
 func (s *Server) start() *http.Server {
@@ -71,7 +76,6 @@ func (s *Server) start() *http.Server {
 
 func (s *Server) ListenAndServe(ctx context.Context) (*http.Server, *int32) {
 	s.registerHandlers()
-	s.handler = s.router
 
 	srv := s.start()
 

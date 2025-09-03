@@ -19,6 +19,7 @@ func TestNewPaymentService(t *testing.T) {
 	mockPaymentRepo := mocks.NewMockPaymentRepository(gomock.NewController(t))
 	mockBalanceService := mocks.NewMockBalanceService(gomock.NewController(t))
 	mockPublisher := mocks.NewMockPublisher(gomock.NewController(t))
+	mockMetrics := mocks.NewMockMetrics(gomock.NewController(t))
 
 	config := ServiceConfig{
 		Logger:            logger,
@@ -26,6 +27,7 @@ func TestNewPaymentService(t *testing.T) {
 		PaymentRepository: mockPaymentRepo,
 		BalanceService:    mockBalanceService,
 		PublisherService:  mockPublisher,
+		MetricsService:    mockMetrics,
 	}
 
 	service := NewPaymentService(config)
@@ -46,6 +48,7 @@ func TestService_Create(t *testing.T) {
 	mockPaymentRepo := mocks.NewMockPaymentRepository(ctrl)
 	mockBalanceService := mocks.NewMockBalanceService(ctrl)
 	mockPublisher := mocks.NewMockPublisher(ctrl)
+	mockMetrics := mocks.NewMockMetrics(ctrl)
 
 	service := &Service{
 		logger:           slog.Default(),
@@ -53,6 +56,7 @@ func TestService_Create(t *testing.T) {
 		paymentRepo:      mockPaymentRepo,
 		balanceService:   mockBalanceService,
 		publisherService: mockPublisher,
+		metricsService:   mockMetrics,
 	}
 
 	ctx := context.Background()
@@ -100,6 +104,8 @@ func TestService_Create(t *testing.T) {
 
 		mockPublisher.EXPECT().
 			Publish(ctx, gomock.Any()).Return(nil).Times(1)
+
+		mockMetrics.EXPECT().RecordTransactionCompleted(gomock.Any(), gomock.Any()).Times(1)
 
 		err := service.Create(ctx, request)
 		assert.NoError(t, err)

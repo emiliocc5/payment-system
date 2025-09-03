@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/adapters/metrics"
 	"log/slog"
 	"time"
 
@@ -106,6 +107,8 @@ func wire(ctx context.Context, logger *slog.Logger, cfg *config.Config) (*http.S
 		return nil, errRabbitPub
 	}
 
+	prometheusMetrics := metrics.NewPrometheusMetrics()
+
 	balanceServiceConfig.BalanceRepository = balanceRepo
 	balanceServiceConfig.Logger = logger
 	balanceSvc := balance.NewBalanceService(&balanceServiceConfig)
@@ -115,6 +118,7 @@ func wire(ctx context.Context, logger *slog.Logger, cfg *config.Config) (*http.S
 	paymentsServiceConfig.BalanceService = balanceSvc
 	paymentsServiceConfig.DB = db
 	paymentsServiceConfig.PublisherService = pub
+	paymentsServiceConfig.MetricsService = prometheusMetrics
 	paymentsSvc := payments.NewPaymentService(paymentsServiceConfig)
 
 	srvCfg.Port = cfg.Port

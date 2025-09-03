@@ -21,6 +21,7 @@ type ServiceConfig struct {
 	PaymentRepository ports.PaymentRepository
 	BalanceService    ports.BalanceService
 	PublisherService  ports.Publisher
+	MetricsService    ports.Metrics
 }
 
 type Service struct {
@@ -29,6 +30,7 @@ type Service struct {
 	paymentRepo      ports.PaymentRepository
 	balanceService   ports.BalanceService
 	publisherService ports.Publisher
+	metricsService   ports.Metrics
 }
 
 func NewPaymentService(config ServiceConfig) *Service {
@@ -38,6 +40,7 @@ func NewPaymentService(config ServiceConfig) *Service {
 		balanceService:   config.BalanceService,
 		db:               config.DB,
 		publisherService: config.PublisherService,
+		metricsService:   config.MetricsService,
 	}
 }
 
@@ -86,7 +89,7 @@ func (s *Service) Create(ctx context.Context, request domain.CreatePaymentReques
 			return domain.ErrCreatePayment
 		}
 
-		//Publish success business metric here
+		s.metricsService.RecordTransactionCompleted("Payment", true)
 
 		paymentInitiatedEvent := &domain.PaymentInitiatedEvent{
 			UserID:        payment.UserID,
