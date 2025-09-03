@@ -8,7 +8,7 @@ import (
 	reflect "reflect"
 	time "time"
 
-	gomock "go.uber.org/mock/gomock"
+	gomock "github.com/golang/mock/gomock"
 )
 
 // MockMetrics is a mock of Metrics interface.
@@ -58,40 +58,16 @@ func (mr *MockMetricsMockRecorder) RecordExternalServiceCall(serviceName, succes
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordExternalServiceCall", reflect.TypeOf((*MockMetrics)(nil).RecordExternalServiceCall), serviceName, success, duration)
 }
 
-// RecordPaymentCreated mocks base method.
-func (m *MockMetrics) RecordPaymentCreated(paymentType, currency string, amount float64) {
+// RecordTransactionAmount mocks base method.
+func (m *MockMetrics) RecordTransactionAmount(transactionType string, amount float64) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RecordPaymentCreated", paymentType, currency, amount)
+	m.ctrl.Call(m, "RecordTransactionAmount", transactionType, amount)
 }
 
-// RecordPaymentCreated indicates an expected call of RecordPaymentCreated.
-func (mr *MockMetricsMockRecorder) RecordPaymentCreated(paymentType, currency, amount interface{}) *gomock.Call {
+// RecordTransactionAmount indicates an expected call of RecordTransactionAmount.
+func (mr *MockMetricsMockRecorder) RecordTransactionAmount(transactionType, amount interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordPaymentCreated", reflect.TypeOf((*MockMetrics)(nil).RecordPaymentCreated), paymentType, currency, amount)
-}
-
-// RecordPaymentFailed mocks base method.
-func (m *MockMetrics) RecordPaymentFailed(errorType, paymentType string) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RecordPaymentFailed", errorType, paymentType)
-}
-
-// RecordPaymentFailed indicates an expected call of RecordPaymentFailed.
-func (mr *MockMetricsMockRecorder) RecordPaymentFailed(errorType, paymentType interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordPaymentFailed", reflect.TypeOf((*MockMetrics)(nil).RecordPaymentFailed), errorType, paymentType)
-}
-
-// RecordPaymentProcessingTime mocks base method.
-func (m *MockMetrics) RecordPaymentProcessingTime(paymentType string, duration time.Duration) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RecordPaymentProcessingTime", paymentType, duration)
-}
-
-// RecordPaymentProcessingTime indicates an expected call of RecordPaymentProcessingTime.
-func (mr *MockMetricsMockRecorder) RecordPaymentProcessingTime(paymentType, duration interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordPaymentProcessingTime", reflect.TypeOf((*MockMetrics)(nil).RecordPaymentProcessingTime), paymentType, duration)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordTransactionAmount", reflect.TypeOf((*MockMetrics)(nil).RecordTransactionAmount), transactionType, amount)
 }
 
 // RecordTransactionCompleted mocks base method.
@@ -104,6 +80,30 @@ func (m *MockMetrics) RecordTransactionCompleted(transactionType string, success
 func (mr *MockMetricsMockRecorder) RecordTransactionCompleted(transactionType, success interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordTransactionCompleted", reflect.TypeOf((*MockMetrics)(nil).RecordTransactionCompleted), transactionType, success)
+}
+
+// RecordTransactionIdempotent mocks base method.
+func (m *MockMetrics) RecordTransactionIdempotent(transactionType string) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "RecordTransactionIdempotent", transactionType)
+}
+
+// RecordTransactionIdempotent indicates an expected call of RecordTransactionIdempotent.
+func (mr *MockMetricsMockRecorder) RecordTransactionIdempotent(transactionType interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordTransactionIdempotent", reflect.TypeOf((*MockMetrics)(nil).RecordTransactionIdempotent), transactionType)
+}
+
+// RecordTransactionProcessingTime mocks base method.
+func (m *MockMetrics) RecordTransactionProcessingTime(transactionType string, duration time.Duration) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "RecordTransactionProcessingTime", transactionType, duration)
+}
+
+// RecordTransactionProcessingTime indicates an expected call of RecordTransactionProcessingTime.
+func (mr *MockMetricsMockRecorder) RecordTransactionProcessingTime(transactionType, duration interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordTransactionProcessingTime", reflect.TypeOf((*MockMetrics)(nil).RecordTransactionProcessingTime), transactionType, duration)
 }
 
 // RecordTransactionStarted mocks base method.

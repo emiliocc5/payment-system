@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/core/ports/mocks"
+	"github.com/golang/mock/gomock"
 	"log/slog"
 	"testing"
 
 	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/core/domain"
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func TestNewPaymentService(t *testing.T) {

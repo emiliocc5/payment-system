@@ -12,7 +12,8 @@ import (
 )
 
 const (
-	Pending = "PENDING"
+	Pending                = "PENDING"
+	PaymentTransactionType = "Payment"
 )
 
 type ServiceConfig struct {
@@ -46,24 +47,33 @@ func NewPaymentService(config ServiceConfig) *Service {
 
 func (s *Service) Create(ctx context.Context, request domain.CreatePaymentRequest) error {
 	return s.db.WithTx(ctx, func(tx *pgx.Tx) error {
+		start := time.Now()
+
+		defer func() {
+			duration := time.Since(start)
+			s.metricsService.RecordTransactionProcessingTime(PaymentTransactionType, duration)
+		}()
+
 		exists, err := s.paymentRepo.CheckIdempotency(ctx, *tx, request.IdempotencyKey)
 		if err != nil {
 			s.logger.Error("failed to check idempotency",
 				slog.Any("error", err),
 				slog.String("idempotency_key", request.IdempotencyKey))
 
+			s.metricsService.RecordTransactionCompleted(PaymentTransactionType, false)
+
 			return domain.ErrCheckIdempotency
 		}
 
 		if exists {
-			//Publish error business metric here
+			s.metricsService.RecordTransactionIdempotent(PaymentTransactionType)
 
 			return nil
 		}
 
 		err = s.balanceService.ReserveFunds(ctx, *tx, request.UserID, request.Amount)
 		if err != nil {
-			//Publish error business metric here
+			s.metricsService.RecordTransactionCompleted(PaymentTransactionType, false)
 
 			return err
 		}
@@ -85,11 +95,12 @@ func (s *Service) Create(ctx context.Context, request domain.CreatePaymentReques
 			slog.Error("failed to create payment",
 				slog.Any("error", errCreate),
 				slog.String("user_id", request.UserID))
+			s.metricsService.RecordTransactionCompleted(PaymentTransactionType, false)
 
 			return domain.ErrCreatePayment
 		}
 
-		s.metricsService.RecordTransactionCompleted("Payment", true)
+		s.metricsService.RecordTransactionCompleted(PaymentTransactionType, true)
 
 		paymentInitiatedEvent := &domain.PaymentInitiatedEvent{
 			UserID:        payment.UserID,
@@ -99,9 +110,16 @@ func (s *Service) Create(ctx context.Context, request domain.CreatePaymentReques
 			TransactionID: payment.ID,
 		}
 
-		s.publisherService.Publish(ctx, paymentInitiatedEvent)
+		errPublishPayment := s.publisherService.Publish(ctx, paymentInitiatedEvent)
+		if errPublishPayment != nil {
+			slog.Error("failed to create payment",
+				slog.Any("error", errPublishPayment),
+				slog.String("user_id", request.UserID))
 
-		s.logger.Info("Payment created")
+			return errPublishPayment
+		}
+
+		s.logger.Debug("Payment created")
 		return nil
 	})
 }

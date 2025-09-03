@@ -7,7 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-//go:generate mockgen -destination=../mocks/balance_ports_mock.go -package=mocks -source=balance.go
+//go:generate mockgen -destination=./mocks/balance_ports_mock.go -package=mocks -source=balance.go
 
 type BalanceRepository interface {
 	Get(ctx context.Context, userID string) (*domain.Balance, error)

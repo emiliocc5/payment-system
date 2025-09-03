@@ -6,54 +6,19 @@ import (
 )
 
 type PrometheusMetrics struct {
-	paymentsCreated           *prometheus.CounterVec
-	paymentsFailed            *prometheus.CounterVec
-	paymentAmount             *prometheus.HistogramVec
-	paymentProcessingDuration *prometheus.HistogramVec
-	walletBalance             *prometheus.GaugeVec
-	transactionsStarted       *prometheus.CounterVec
-	transactionsCompleted     *prometheus.CounterVec
-	dbOperationDuration       *prometheus.HistogramVec
-	externalServiceCalls      *prometheus.CounterVec
-	externalServiceDuration   *prometheus.HistogramVec
+	walletBalance                 *prometheus.GaugeVec
+	transactionsIdempotent        *prometheus.CounterVec
+	transactionsStarted           *prometheus.CounterVec
+	transactionsCompleted         *prometheus.CounterVec
+	transactionAmount             *prometheus.CounterVec
+	transactionProcessingDuration *prometheus.HistogramVec
+	dbOperationDuration           *prometheus.HistogramVec
+	externalServiceCalls          *prometheus.CounterVec
+	externalServiceDuration       *prometheus.HistogramVec
 }
 
 func NewPrometheusMetrics() *PrometheusMetrics {
 	metrics := &PrometheusMetrics{
-		paymentsCreated: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Name: "payment_wallet_payments_created_total",
-				Help: "Total number of payments created successfully",
-			},
-			[]string{"payment_type", "currency"},
-		),
-
-		paymentsFailed: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Name: "payment_wallet_payments_failed_total",
-				Help: "Total number of failed payments",
-			},
-			[]string{"error_type", "payment_type"},
-		),
-
-		paymentAmount: prometheus.NewHistogramVec(
-			prometheus.HistogramOpts{
-				Name:    "payment_wallet_payment_amount",
-				Help:    "Payment amounts processed",
-				Buckets: []float64{1, 10, 50, 100, 500, 1000, 5000, 10000},
-			},
-			[]string{"currency", "payment_type"},
-		),
-
-		paymentProcessingDuration: prometheus.NewHistogramVec(
-			prometheus.HistogramOpts{
-				Name:    "payment_wallet_payment_processing_duration_seconds",
-				Help:    "Time taken to process payments",
-				Buckets: []float64{0.1, 0.5, 1, 2, 5, 10, 30},
-			},
-			[]string{"payment_type"},
-		),
-
 		walletBalance: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "payment_wallet_balance_total",
@@ -61,7 +26,13 @@ func NewPrometheusMetrics() *PrometheusMetrics {
 			},
 			[]string{"wallet_id", "currency"},
 		),
-
+		transactionsIdempotent: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "payment_wallet_transactions_idempotent_total",
+				Help: "Total number of transactions idempotent",
+			},
+			[]string{"transaction_type"},
+		),
 		transactionsStarted: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "payment_wallet_transactions_started_total",
@@ -69,13 +40,27 @@ func NewPrometheusMetrics() *PrometheusMetrics {
 			},
 			[]string{"transaction_type"},
 		),
-
 		transactionsCompleted: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "payment_wallet_transactions_completed_total",
 				Help: "Total number of transactions completed",
 			},
 			[]string{"transaction_type", "success"},
+		),
+		transactionAmount: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "payment_wallet_transactions_amount",
+				Help: "Transaction amounts processed",
+			},
+			[]string{"transaction_type", "currency"},
+		),
+		transactionProcessingDuration: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name:    "payment_wallet_transactions_processing_duration_seconds",
+				Help:    "Time taken to process transactions",
+				Buckets: []float64{0.1, 0.5, 1, 2, 5, 10, 30},
+			},
+			[]string{"transaction_type"},
 		),
 
 		dbOperationDuration: prometheus.NewHistogramVec(
@@ -105,15 +90,12 @@ func NewPrometheusMetrics() *PrometheusMetrics {
 		),
 	}
 
-	// Registrar todas las métricas con Prometheus
 	prometheus.MustRegister(
-		metrics.paymentsCreated,
-		metrics.paymentsFailed,
-		metrics.paymentAmount,
-		metrics.paymentProcessingDuration,
 		metrics.walletBalance,
 		metrics.transactionsStarted,
 		metrics.transactionsCompleted,
+		metrics.transactionAmount,
+		metrics.transactionProcessingDuration,
 		metrics.dbOperationDuration,
 		metrics.externalServiceCalls,
 		metrics.externalServiceDuration,
@@ -122,21 +104,12 @@ func NewPrometheusMetrics() *PrometheusMetrics {
 	return metrics
 }
 
-func (m *PrometheusMetrics) RecordPaymentCreated(paymentType, currency string, amount float64) {
-	m.paymentsCreated.WithLabelValues(paymentType, currency).Inc()
-	m.paymentAmount.WithLabelValues(currency, paymentType).Observe(amount)
-}
-
-func (m *PrometheusMetrics) RecordPaymentFailed(errorType, paymentType string) {
-	m.paymentsFailed.WithLabelValues(errorType, paymentType).Inc()
-}
-
-func (m *PrometheusMetrics) RecordPaymentProcessingTime(paymentType string, duration time.Duration) {
-	m.paymentProcessingDuration.WithLabelValues(paymentType).Observe(duration.Seconds())
-}
-
 func (m *PrometheusMetrics) UpdateWalletBalance(walletID, currency string, balance float64) {
 	m.walletBalance.WithLabelValues(walletID, currency).Set(balance)
+}
+
+func (m *PrometheusMetrics) RecordTransactionIdempotent(transactionType string) {
+	m.transactionsIdempotent.WithLabelValues(transactionType).Inc()
 }
 
 func (m *PrometheusMetrics) RecordTransactionStarted(transactionType string) {
@@ -149,6 +122,14 @@ func (m *PrometheusMetrics) RecordTransactionCompleted(transactionType string, s
 		successStr = "true"
 	}
 	m.transactionsCompleted.WithLabelValues(transactionType, successStr).Inc()
+}
+
+func (m *PrometheusMetrics) RecordTransactionAmount(transactionType string, amount float64) {
+	m.transactionAmount.WithLabelValues(transactionType).Add(amount)
+}
+
+func (m *PrometheusMetrics) RecordTransactionProcessingTime(transactionType string, duration time.Duration) {
+	m.transactionProcessingDuration.WithLabelValues(transactionType).Observe(duration.Seconds())
 }
 
 func (m *PrometheusMetrics) RecordDatabaseOperationDuration(operation string, duration time.Duration) {
