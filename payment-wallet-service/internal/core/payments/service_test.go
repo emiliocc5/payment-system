@@ -105,7 +105,8 @@ func TestService_Create(t *testing.T) {
 		mockPublisher.EXPECT().
 			Publish(ctx, gomock.Any()).Return(nil).Times(1)
 
-		mockMetrics.EXPECT().RecordTransactionCompleted(gomock.Any(), gomock.Any()).Times(1)
+		mockMetrics.EXPECT().RecordTransactionStarted(gomock.Any()).Times(1)
+		mockMetrics.EXPECT().RecordTransactionProcessingTime(gomock.Any(), gomock.Any()).Times(1)
 
 		err := service.Create(ctx, request)
 		assert.NoError(t, err)
@@ -126,6 +127,9 @@ func TestService_Create(t *testing.T) {
 		mockBalanceService.EXPECT().ReserveFunds(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 		mockPaymentRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 		mockPublisher.EXPECT().Publish(gomock.Any(), gomock.Any()).Times(0)
+		mockMetrics.EXPECT().RecordTransactionCompleted(gomock.Any(), gomock.Any()).Times(0)
+		mockMetrics.EXPECT().RecordTransactionProcessingTime(gomock.Any(), gomock.Any()).Times(1)
+		mockMetrics.EXPECT().RecordTransactionIdempotent(gomock.Any()).Times(1)
 
 		err := service.Create(ctx, request)
 		assert.NoError(t, err)
@@ -140,6 +144,9 @@ func TestService_Create(t *testing.T) {
 				return fn(dummyTx)
 			},
 		)
+		mockMetrics.EXPECT().RecordTransactionCompleted(gomock.Any(), false).Times(1)
+		mockMetrics.EXPECT().RecordTransactionProcessingTime(gomock.Any(), gomock.Any()).Times(1)
+		mockMetrics.EXPECT().RecordTransactionIdempotent(gomock.Any()).Times(0)
 
 		mockPaymentRepo.EXPECT().
 			CheckIdempotency(ctx, gomock.Any(), request.IdempotencyKey).
@@ -167,6 +174,10 @@ func TestService_Create(t *testing.T) {
 		mockBalanceService.EXPECT().
 			ReserveFunds(ctx, gomock.Any(), request.UserID, request.Amount).
 			Return(expectedError)
+
+		mockMetrics.EXPECT().RecordTransactionCompleted(gomock.Any(), false).Times(1)
+		mockMetrics.EXPECT().RecordTransactionProcessingTime(gomock.Any(), gomock.Any()).Times(1)
+		mockMetrics.EXPECT().RecordTransactionIdempotent(gomock.Any()).Times(0)
 
 		err := service.Create(ctx, request)
 		assert.Error(t, err)
@@ -197,6 +208,10 @@ func TestService_Create(t *testing.T) {
 
 		mockPublisher.EXPECT().Publish(gomock.Any(), gomock.Any()).Times(0)
 
+		mockMetrics.EXPECT().RecordTransactionCompleted(gomock.Any(), false).Times(1)
+		mockMetrics.EXPECT().RecordTransactionProcessingTime(gomock.Any(), gomock.Any()).Times(1)
+		mockMetrics.EXPECT().RecordTransactionIdempotent(gomock.Any()).Times(0)
+
 		err := service.Create(ctx, request)
 		assert.Error(t, err)
 		assert.Equal(t, domain.ErrCreatePayment, err)
@@ -221,6 +236,7 @@ func BenchmarkService_Create(b *testing.B) {
 	mockPaymentRepo := mocks.NewMockPaymentRepository(ctrl)
 	mockBalanceService := mocks.NewMockBalanceService(ctrl)
 	mockPublisher := mocks.NewMockPublisher(ctrl)
+	mockMetrics := mocks.NewMockMetrics(ctrl)
 
 	service := &Service{
 		logger:           slog.Default(),
@@ -228,6 +244,7 @@ func BenchmarkService_Create(b *testing.B) {
 		paymentRepo:      mockPaymentRepo,
 		balanceService:   mockBalanceService,
 		publisherService: mockPublisher,
+		metricsService:   mockMetrics,
 	}
 
 	ctx := context.Background()
@@ -250,6 +267,8 @@ func BenchmarkService_Create(b *testing.B) {
 	mockBalanceService.EXPECT().ReserveFunds(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mockPaymentRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mockPublisher.EXPECT().Publish(gomock.Any(), gomock.Any()).AnyTimes()
+	mockMetrics.EXPECT().RecordTransactionCompleted(gomock.Any(), gomock.Any()).AnyTimes()
+	mockMetrics.EXPECT().RecordTransactionProcessingTime(gomock.Any(), gomock.Any()).AnyTimes()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

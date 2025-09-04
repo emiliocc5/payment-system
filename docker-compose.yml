@@ -20,6 +20,19 @@ services:
     networks:
       - payment-network
 
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: postgres-exporter-main
+    environment:
+      DATA_SOURCE_NAME: "postgresql://user:password@postgres-main:5432/paymentsystem?sslmode=disable"
+    ports:
+      - "9187:9187"
+    depends_on:
+      postgres-main:
+        condition: service_healthy
+    networks:
+      - payment-network
+
   rabbitmq:
     image: rabbitmq:4.0-management-alpine
     container_name: rabbitmq
@@ -63,9 +76,12 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
       KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_JMX_OPTS: "-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=kafka -Dcom.sun.management.jmxremote.rmi.port=9999"
+      JMX_PORT: 9999
     ports:
       - "9092:9092"
       - "9093:9093"
+      - "9999:9999"
     volumes:
       - kafka_data:/var/lib/kafka/data
     healthcheck:
@@ -74,6 +90,19 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
+    networks:
+      - payment-network
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.8.0
+    container_name: kafka-exporter
+    command:
+      - '--kafka.server=kafka:9092'
+    ports:
+      - "9308:9308"
+    depends_on:
+        kafka:
+          condition: service_healthy
     networks:
       - payment-network
 

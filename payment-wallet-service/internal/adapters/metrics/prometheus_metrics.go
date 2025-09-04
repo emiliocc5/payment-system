@@ -95,6 +95,7 @@ func NewPrometheusMetrics() *PrometheusMetrics {
 		metrics.transactionsStarted,
 		metrics.transactionsCompleted,
 		metrics.transactionAmount,
+		metrics.transactionsIdempotent,
 		metrics.transactionProcessingDuration,
 		metrics.dbOperationDuration,
 		metrics.externalServiceCalls,

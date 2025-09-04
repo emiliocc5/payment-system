@@ -100,7 +100,7 @@ func (s *Service) Create(ctx context.Context, request domain.CreatePaymentReques
 			return domain.ErrCreatePayment
 		}
 
-		s.metricsService.RecordTransactionCompleted(PaymentTransactionType, true)
+		s.metricsService.RecordTransactionStarted(PaymentTransactionType)
 
 		paymentInitiatedEvent := &domain.PaymentInitiatedEvent{
 			UserID:        payment.UserID,

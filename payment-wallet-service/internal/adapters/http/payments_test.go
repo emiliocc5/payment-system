@@ -6,7 +6,7 @@ import (
 	"errors"
 	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/core/domain"
 	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/core/ports/mocks"
-	"go.uber.org/mock/gomock"
+	"github.com/golang/mock/gomock"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"

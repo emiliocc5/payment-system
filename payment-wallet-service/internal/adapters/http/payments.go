@@ -38,5 +38,5 @@ func (s *Server) createPaymentHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.JSONResponseCode(w, r, "", http.StatusCreated)
+	w.WriteHeader(http.StatusCreated)
 }

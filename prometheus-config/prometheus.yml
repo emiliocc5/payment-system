@@ -18,6 +18,8 @@ scrape_configs:
   - job_name: 'postgres-main'
     static_configs:
       - targets: ['postgres-exporter-main:9187']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
 
   - job_name: 'rabbitmq'
     static_configs:
@@ -26,4 +28,6 @@ scrape_configs:
 
   - job_name: 'kafka'
     static_configs:
-      - targets: ['kafka:9999']
+      - targets: ['kafka-exporter:9308']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
