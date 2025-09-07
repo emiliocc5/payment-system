@@ -125,5 +125,8 @@ func (s *Service) Create(ctx context.Context, request domain.CreatePaymentReques
 }
 
 func (s *Service) Update(ctx context.Context, paymentID, status string) error {
+	// Confirmar la operación de balance
+
+	// Updatear registro en DB
 	return nil
 }

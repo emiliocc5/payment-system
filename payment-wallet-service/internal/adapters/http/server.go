@@ -28,7 +28,7 @@ type Server struct {
 	port           int
 	logger         *slog.Logger
 	router         *mux.Router
-	handler        http.Handler
+	httpHandler    http.Handler
 	paymentService ports.PaymentService
 	balanceService ports.BalanceService
 }
@@ -50,7 +50,7 @@ func (s *Server) registerHandlers() {
 
 	sub.HandleFunc("/payments", s.createPaymentHandler).Methods(http.MethodPost)
 
-	s.handler = metrics.Middleware(s.router, *s.logger)
+	s.httpHandler = metrics.Middleware(s.router, *s.logger)
 }
 
 func (s *Server) start() *http.Server {
@@ -60,7 +60,7 @@ func (s *Server) start() *http.Server {
 
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", s.port),
-		Handler:           s.handler,
+		Handler:           s.httpHandler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
