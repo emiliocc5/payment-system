@@ -1,0 +1,4 @@
+1. Crear código para el handlePaymentEvent en adapters/kafka
+2. Armar lógica para update del pago
+3. Implementar en main go routines separadas para http y async
+4. Agregar en signals las señales de graceful shutdown de kafka
