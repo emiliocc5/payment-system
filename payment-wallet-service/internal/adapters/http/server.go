@@ -3,11 +3,12 @@ package http
 import (
 	"context"
 	"fmt"
+	"log/slog"
+
 	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/core/ports"
 	"github.com/emiliocc5/payment-system/payment-wallet-service/pkg/metrics"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"log/slog"
 
 	"net/http"
 	"sync/atomic"
@@ -80,8 +81,6 @@ func (s *Server) ListenAndServe(ctx context.Context) (*http.Server, *int32) {
 	srv := s.start()
 
 	atomic.StoreInt32(&_healthy, 1)
-
-	//go s.ps.Listen(ctx)
 
 	return srv, &_healthy
 }

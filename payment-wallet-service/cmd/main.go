@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/adapters/metrics"
 	"log/slog"
 	"time"
+
+	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/adapters/metrics"
 
 	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/adapters/http"
 	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/adapters/pubsub/rabbit"
