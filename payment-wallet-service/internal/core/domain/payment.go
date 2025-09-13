@@ -2,8 +2,9 @@ package domain
 
 import (
 	"fmt"
-	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"time"
+
+	validation "github.com/go-ozzo/ozzo-validation/v4"
 )
 
 type CreatePaymentRequest struct {
@@ -34,7 +35,12 @@ type PaymentInitiatedEvent struct {
 	TransactionID string `json:"transaction_id"`
 }
 
-type PaymentResultEvent struct{}
+type PaymentResultEvent struct {
+	UserID        string         `json:"user_id"`
+	TransactionID string         `json:"transaction_id"`
+	Status        string         `json:"status"`
+	Metadata      map[string]any `json:"metadata"`
+}
 
 func (cpr CreatePaymentRequest) Validate() error {
 	err := validation.ValidateStruct(&cpr,

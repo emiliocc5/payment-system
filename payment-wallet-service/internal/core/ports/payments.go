@@ -13,6 +13,7 @@ type PaymentRepository interface {
 	CheckIdempotency(ctx context.Context, tx pgx.Tx, idempotencyKey string) (bool, error)
 	Create(ctx context.Context, tx pgx.Tx, payment domain.Payment) error
 	Update(ctx context.Context, payment domain.Payment) error
+	Get(ctx context.Context, paymentID string) (*domain.Payment, error)
 }
 
 type PaymentService interface {

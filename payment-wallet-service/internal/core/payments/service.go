@@ -125,8 +125,33 @@ func (s *Service) Create(ctx context.Context, request domain.CreatePaymentReques
 }
 
 func (s *Service) Update(ctx context.Context, paymentID, status string) error {
-	// Confirmar la operación de balance
+	payment, errGetPayment := s.paymentRepo.Get(ctx, paymentID)
+	if errGetPayment != nil {
+		s.logger.
+			With("Error", errGetPayment).
+			Error("failed to get payment")
 
-	// Updatear registro en DB
+		return errGetPayment
+	}
+	//TODO do this transactional
+	errUpdateBalance := s.balanceService.Update(ctx, payment.UserID, payment.Amount)
+	if errUpdateBalance != nil {
+		s.logger.
+			With("Error", errUpdateBalance).
+			Error("failed to update balance")
+	}
+
+	payment.Status = status
+
+	errUpdatePayment := s.paymentRepo.Update(ctx, *payment)
+	if errUpdatePayment != nil {
+		s.logger.
+			With("Error", errUpdatePayment).
+			Error("failed to update payment")
+	}
+
+	s.logger.Debug("Payment updated")
+	s.metricsService.RecordTransactionCompleted(PaymentTransactionType, true)
+
 	return nil
 }

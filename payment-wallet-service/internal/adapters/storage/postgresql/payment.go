@@ -71,3 +71,28 @@ func (p *PaymentsRepository) Create(ctx context.Context, tx pgx.Tx, payment doma
 func (p *PaymentsRepository) Update(ctx context.Context, payment domain.Payment) error {
 	return nil
 }
+
+func (p *PaymentsRepository) Get(ctx context.Context, paymentID string) (*domain.Payment, error) {
+	query := `
+		SELECT id, idempotency_key, user_id, amount, status, service_id, client_number, created_at, updated_at
+		FROM payments
+		WHERE id = $1
+	`
+	var payment domain.Payment
+	err := p.db.QueryRow(ctx, query, paymentID).Scan(
+		&payment.ID,
+		&payment.IdempotencyKey,
+		&payment.UserID,
+		&payment.Amount,
+		&payment.Status,
+		&payment.ServiceID,
+		&payment.ClientNumber,
+		&payment.CreatedAt,
+		&payment.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &payment, nil
+}
