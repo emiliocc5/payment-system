@@ -24,7 +24,6 @@ type ConsumerConfig struct {
 type ServiceConfig struct {
 	Logger         *slog.Logger
 	PaymentService ports.PaymentService
-	Consumer       *sarama.ConsumerGroup
 	ConsumerConfig ConsumerConfig
 }
 
@@ -39,7 +38,7 @@ type Service struct {
 	ready          chan bool
 }
 
-func NewService(config ServiceConfig) (*Service, error) {
+func NewService(config *ServiceConfig) (*Service, error) {
 	cfg := sarama.NewConfig()
 	strategies := make([]sarama.BalanceStrategy, 0)
 	strategies = append(strategies, sarama.NewBalanceStrategyRoundRobin())
@@ -53,7 +52,8 @@ func NewService(config ServiceConfig) (*Service, error) {
 		cfg.Consumer.Offsets.Initial = sarama.OffsetNewest
 	}
 
-	consumerGroup, err := sarama.NewConsumerGroup(config.ConsumerConfig.Brokers, config.ConsumerConfig.GroupID, cfg)
+	consumerGroup, err := sarama.NewConsumerGroup(config.ConsumerConfig.Brokers,
+		config.ConsumerConfig.GroupID, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +129,7 @@ func (s *Service) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama
 				slog.Int64("partition", int64(message.Partition)),
 				slog.Int64("offset", message.Offset))
 
-			if err := s.handleMessage(message); err != nil {
+			if err := s.handleMessage(session.Context(), message); err != nil {
 				s.logger.Error("Error processing message",
 					slog.Any("error", err),
 					slog.String("topic", message.Topic),
@@ -146,10 +146,11 @@ func (s *Service) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama
 	}
 }
 
-func (s *Service) handleMessage(message *sarama.ConsumerMessage) error {
+func (s *Service) handleMessage(ctx context.Context,
+	message *sarama.ConsumerMessage) error {
 	switch message.Topic {
 	case "payment-events":
-		return s.handlePaymentEvent(message)
+		return s.handlePaymentEvent(ctx, message)
 	default:
 		s.logger.Warn("Unknown topic", slog.String("topic", message.Topic))
 		return nil

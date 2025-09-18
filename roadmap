@@ -2,6 +2,7 @@ Check - 1. Crear código para el handlePaymentEvent en adapters/kafka
 Check - 2. Armar lógica para update del pago
 3. Implementar en main go routines separadas para http y async
 4. Agregar en signals las señales de graceful shutdown de kafka
+5. Crear código para la creación de tópicos
 5. Implementar persistencia en los repositories
 6. Agregar validaciones para no updatear un pago que ya esta en estado final
 7. Transaccionalizar las acciones de balance y update de pago

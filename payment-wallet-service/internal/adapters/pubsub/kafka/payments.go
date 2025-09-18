@@ -18,6 +18,7 @@ func (s *Service) handlePaymentEvent(ctx context.Context, message *sarama.Consum
 
 		return err
 	}
+	event.UserID = string(message.Key)
 
 	errUpdate := s.paymentService.Update(ctx, event.TransactionID, event.Status)
 	if errUpdate != nil {

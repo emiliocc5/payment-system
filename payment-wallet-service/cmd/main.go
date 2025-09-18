@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/adapters/metrics"
+	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/adapters/pubsub/kafka"
 
 	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/adapters/http"
 	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/adapters/pubsub/rabbit"
@@ -48,10 +49,20 @@ func run(logger *slog.Logger, cfg *config.Config) {
 		panic(err)
 	}
 
-	srvCfg, err := wire(ctx, logger, cfg)
+	srvCfg, asyncCfg, err := wire(ctx, logger, cfg)
 	if err != nil {
 		logger.Error("failed to wire services", "error", err)
 		panic(err)
+	}
+
+	consumer, errNewConsumer := kafka.NewService(asyncCfg)
+	if errNewConsumer != nil {
+		logger.Error("failed to create kafka consumer", "error", errNewConsumer)
+		panic(errNewConsumer)
+	}
+	if err := consumer.Start(); err != nil {
+		logger.Error("Failed to start Kafka consumer", "error", err)
+		return
 	}
 
 	srv := http.NewServer(srvCfg, logger)
@@ -83,16 +94,18 @@ func migration(ctx context.Context, logger *slog.Logger, cfg *config.Config) err
 	return nil
 }
 
-func wire(ctx context.Context, logger *slog.Logger, cfg *config.Config) (*http.ServerConfig, error) {
+func wire(ctx context.Context, logger *slog.Logger, cfg *config.Config) (*http.ServerConfig, *kafka.ServiceConfig, error) {
 	var (
 		balanceServiceConfig  balance.ServiceConfig
 		paymentsServiceConfig payments.ServiceConfig
 		pubConfig             rabbit.Config
-		srvCfg                http.ServerConfig
+		httpSrvCfg            http.ServerConfig
+		consumerConfig        kafka.ConsumerConfig
+		asyncSrvCfg           kafka.ServiceConfig
 	)
 	db, err := postgresql.NewDatabase(ctx, cfg.StorageConfig.Dsn)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	balanceRepo := postgresql.NewPgBalanceRepository(db.DB)
@@ -105,7 +118,7 @@ func wire(ctx context.Context, logger *slog.Logger, cfg *config.Config) (*http.S
 
 	pub, errRabbitPub := rabbit.NewRabbitPub(pubConfig)
 	if errRabbitPub != nil {
-		return nil, errRabbitPub
+		return nil, nil, errRabbitPub
 	}
 
 	prometheusMetrics := metrics.NewPrometheusMetrics()
@@ -122,9 +135,18 @@ func wire(ctx context.Context, logger *slog.Logger, cfg *config.Config) (*http.S
 	paymentsServiceConfig.MetricsService = prometheusMetrics
 	paymentsSvc := payments.NewPaymentService(paymentsServiceConfig)
 
-	srvCfg.Port = cfg.Port
-	srvCfg.PaymentService = paymentsSvc
-	srvCfg.BalanceService = balanceSvc
+	httpSrvCfg.Port = cfg.Port
+	httpSrvCfg.PaymentService = paymentsSvc
+	httpSrvCfg.BalanceService = balanceSvc
 
-	return &srvCfg, nil
+	consumerConfig.GroupID = cfg.SubConfig.GroupID
+	consumerConfig.Topics = cfg.SubConfig.Topics
+	consumerConfig.StartOldest = cfg.SubConfig.StartOldest
+	consumerConfig.Brokers = cfg.SubConfig.Brokers
+
+	asyncSrvCfg.Logger = logger
+	asyncSrvCfg.PaymentService = paymentsSvc
+	asyncSrvCfg.ConsumerConfig = consumerConfig
+
+	return &httpSrvCfg, &asyncSrvCfg, nil
 }
