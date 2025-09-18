@@ -35,7 +35,8 @@ type Service struct {
 	ctx            context.Context
 	cancel         context.CancelFunc
 	topics         []string
-	ready          chan bool
+	readyChan      chan bool
+	errChan        chan error
 }
 
 func NewService(config *ServiceConfig) (*Service, error) {
@@ -65,6 +66,10 @@ func NewService(config *ServiceConfig) (*Service, error) {
 		paymentService: config.PaymentService,
 		consumer:       consumerGroup,
 		ctx:            ctx,
+		topics:         config.ConsumerConfig.Topics,
+		wg:             &sync.WaitGroup{},
+		readyChan:      make(chan bool),
+		errChan:        make(chan error),
 		cancel:         cancel,
 	}, nil
 }
@@ -75,22 +80,32 @@ func (s *Service) Start() error {
 		defer s.wg.Done()
 		for {
 			if err := s.consumer.Consume(s.ctx, s.topics, s); err != nil {
-				s.logger.Error("Error from consumer", slog.Any("error", err))
+				s.logger.
+					With("error", err).
+					Error("Error from consumer")
+				s.readyChan <- false
+				s.errChan <- err
 				return
 			}
 			if s.ctx.Err() != nil {
 				s.logger.Info("Consumer context cancelled")
+				s.readyChan <- false
 				return
 			}
-			s.ready = make(chan bool)
 		}
 	}()
 
-	<-s.ready
-	s.logger.Info("Kafka consumer up and running",
-		slog.Any("topics", s.topics))
+	ready := <-s.readyChan
+	err := <-s.errChan
 
-	return nil
+	if ready {
+		s.logger.Info("Kafka consumer up and running",
+			slog.Any("topics", s.topics))
+	} else {
+		s.logger.Warn("Kafka consumer not ready")
+	}
+
+	return err
 }
 
 func (s *Service) Stop() error {
@@ -108,7 +123,7 @@ func (s *Service) Stop() error {
 }
 
 func (s *Service) Setup(_ sarama.ConsumerGroupSession) error {
-	close(s.ready)
+	close(s.readyChan)
 	return nil
 }
 

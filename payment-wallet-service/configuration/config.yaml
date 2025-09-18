@@ -8,9 +8,10 @@ pub:
   rabbit-url: amqp://admin:admin123@rabbitmq:5672/
   exchange: payments_exchange
   routing-key: payment_initiated
-#kafka:
- # brokers: kafka:9092
-  #topic: payment-notifications
+sub:
+  brokers: [kafka:9092]
+  topics: [payment-events]
+  group-id: payment-events-consumer
 metrics:
   prometheus:
     enabled: true

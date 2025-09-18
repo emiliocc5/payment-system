@@ -65,6 +65,21 @@ func (mr *MockPaymentRepositoryMockRecorder) Create(ctx, tx, payment interface{}
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockPaymentRepository)(nil).Create), ctx, tx, payment)
 }
 
+// Get mocks base method.
+func (m *MockPaymentRepository) Get(ctx context.Context, paymentID string) (*domain.Payment, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Get", ctx, paymentID)
+	ret0, _ := ret[0].(*domain.Payment)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Get indicates an expected call of Get.
+func (mr *MockPaymentRepositoryMockRecorder) Get(ctx, paymentID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockPaymentRepository)(nil).Get), ctx, paymentID)
+}
+
 // Update mocks base method.
 func (m *MockPaymentRepository) Update(ctx context.Context, payment domain.Payment) error {
 	m.ctrl.T.Helper()

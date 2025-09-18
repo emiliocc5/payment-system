@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/adapters/metrics"
@@ -60,18 +61,38 @@ func run(logger *slog.Logger, cfg *config.Config) {
 		logger.Error("failed to create kafka consumer", "error", errNewConsumer)
 		panic(errNewConsumer)
 	}
-	if err := consumer.Start(); err != nil {
-		logger.Error("Failed to start Kafka consumer", "error", err)
-		return
-	}
 
 	srv := http.NewServer(srvCfg, logger)
 	httpSrv, healthy := srv.ListenAndServe(ctx)
 
+	var wg sync.WaitGroup
+
+	errChan := make(chan error, 2)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		logger.Info("Starting event consumer")
+		if err := consumer.Start(); err != nil {
+			logger.Warn("failed to start event consumer", "error", err)
+			errChan <- err
+		}
+	}()
+
+	go func() {
+		select {
+		case err := <-errChan:
+			if err != nil {
+				logger.Warn("service error occurred", "error", err)
+				//TODO decide if shutdown app
+			}
+		}
+	}()
+
 	// graceful shutdown
 	stopCh := signals.SetupSignalHandler()
 	sd, _ := signals.NewShutdown(3*time.Second, logger)
-	sd.Graceful(stopCh, httpSrv, healthy)
+	sd.Graceful(stopCh, httpSrv, consumer, healthy, &wg)
 }
 
 func migration(ctx context.Context, logger *slog.Logger, cfg *config.Config) error {
