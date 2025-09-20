@@ -3,10 +3,11 @@ package payments
 import (
 	"context"
 	"errors"
-	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/core/ports/mocks"
-	"github.com/golang/mock/gomock"
 	"log/slog"
 	"testing"
+
+	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/core/ports/mocks"
+	"github.com/golang/mock/gomock"
 
 	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/core/domain"
 	"github.com/jackc/pgx/v5"
@@ -273,5 +274,156 @@ func BenchmarkService_Create(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = service.Create(ctx, request)
+	}
+}
+
+func TestService_Update(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name                       string
+		paymentID                  string
+		status                     string
+		getPaymentRepoResp         *domain.Payment
+		getPaymentRepoErr          error
+		confirmReserveServiceErr   error
+		releaseReserveServiceErr   error
+		updatePaymentRepoErr       error
+		getPaymentServiceTimes     int
+		confirmReserveServiceTimes int
+		releaseReserveServiceTimes int
+		updatePaymentRepoTimes     int
+		successMetric              bool
+		publishMetricTimes         int
+		expectedError              error
+	}{
+		{
+			name:      "Success update payment",
+			paymentID: "payment-id",
+			status:    Success,
+			getPaymentRepoResp: &domain.Payment{
+				ID:           "payment-id",
+				Amount:       100.0,
+				ServiceID:    "service-1",
+				ClientNumber: "client-456",
+				Status:       Pending,
+			},
+			getPaymentServiceTimes:     1,
+			confirmReserveServiceTimes: 1,
+			updatePaymentRepoTimes:     1,
+			successMetric:              true,
+			publishMetricTimes:         1,
+		},
+		{
+			name:                       "Error getting payment",
+			paymentID:                  "payment-id",
+			status:                     Success,
+			getPaymentRepoErr:          errors.New("get payment error"),
+			getPaymentServiceTimes:     1,
+			confirmReserveServiceTimes: 0,
+			updatePaymentRepoTimes:     0,
+			publishMetricTimes:         0,
+			expectedError:              domain.ErrGetPayment,
+		},
+		{
+			name:      "Payment update idempotency",
+			paymentID: "payment-id",
+			status:    Success,
+			getPaymentRepoResp: &domain.Payment{
+				ID:           "payment-id",
+				Amount:       100.0,
+				ServiceID:    "service-1",
+				ClientNumber: "client-456",
+				Status:       Success,
+			},
+			getPaymentServiceTimes:     1,
+			confirmReserveServiceTimes: 0,
+			updatePaymentRepoTimes:     0,
+			publishMetricTimes:         0,
+		},
+		{
+			name:      "Payment not success then release funds",
+			paymentID: "payment-id",
+			status:    "Error",
+			getPaymentRepoResp: &domain.Payment{
+				ID:           "payment-id",
+				Amount:       100.0,
+				ServiceID:    "service-1",
+				ClientNumber: "client-456",
+				Status:       Pending,
+			},
+			getPaymentServiceTimes:     1,
+			releaseReserveServiceTimes: 1,
+			updatePaymentRepoTimes:     1,
+			successMetric:              true,
+			publishMetricTimes:         1,
+		},
+		{
+			name:      "Success update payment",
+			paymentID: "payment-id",
+			status:    Success,
+			getPaymentRepoResp: &domain.Payment{
+				ID:           "payment-id",
+				Amount:       100.0,
+				ServiceID:    "service-1",
+				ClientNumber: "client-456",
+				Status:       Pending,
+			},
+			getPaymentServiceTimes:     1,
+			confirmReserveServiceTimes: 1,
+			confirmReserveServiceErr:   errors.New("confirm reserve error"),
+			updatePaymentRepoTimes:     0,
+			publishMetricTimes:         0,
+			expectedError:              domain.ErrConfirmReserve,
+		},
+		{
+			name:      "Success update payment",
+			paymentID: "payment-id",
+			status:    Success,
+			getPaymentRepoResp: &domain.Payment{
+				ID:           "payment-id",
+				Amount:       100.0,
+				ServiceID:    "service-1",
+				ClientNumber: "client-456",
+				Status:       Pending,
+			},
+			getPaymentServiceTimes:     1,
+			confirmReserveServiceTimes: 1,
+			updatePaymentRepoTimes:     1,
+			updatePaymentRepoErr:       errors.New("update payment error"),
+			publishMetricTimes:         0,
+			expectedError:              domain.ErrUpdatePayment,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockPaymentRepo := mocks.NewMockPaymentRepository(ctrl)
+			mockBalanceService := mocks.NewMockBalanceService(ctrl)
+			mockMetrics := mocks.NewMockMetrics(ctrl)
+
+			mockPaymentRepo.EXPECT().Get(context.Background(), tt.paymentID).
+				Return(tt.getPaymentRepoResp, tt.getPaymentRepoErr).Times(tt.getPaymentServiceTimes)
+			mockBalanceService.EXPECT().ConfirmReserve(context.Background(), gomock.Any(), gomock.Any()).
+				Return(tt.confirmReserveServiceErr).Times(tt.confirmReserveServiceTimes)
+			mockBalanceService.EXPECT().ReleaseFunds(context.Background(), gomock.Any(), gomock.Any()).
+				Return(tt.releaseReserveServiceErr).Times(tt.releaseReserveServiceTimes)
+			mockPaymentRepo.EXPECT().Update(context.Background(), gomock.Any()).
+				Return(tt.updatePaymentRepoErr).Times(tt.updatePaymentRepoTimes)
+			mockMetrics.EXPECT().RecordTransactionCompleted(PaymentTransactionType, tt.successMetric).
+				Times(tt.publishMetricTimes)
+
+			cfg := ServiceConfig{
+				PaymentRepository: mockPaymentRepo,
+				BalanceService:    mockBalanceService,
+				MetricsService:    mockMetrics,
+				Logger:            slog.Default(),
+			}
+
+			paymentService := NewPaymentService(cfg)
+
+			err := paymentService.Update(context.Background(), tt.paymentID, tt.status)
+
+			assert.Equal(t, tt.expectedError, err)
+		})
 	}
 }

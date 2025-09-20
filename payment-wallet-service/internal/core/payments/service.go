@@ -13,6 +13,7 @@ import (
 
 const (
 	Pending                = "PENDING"
+	Success                = "SUCCESS"
 	PaymentTransactionType = "Payment"
 )
 
@@ -131,14 +132,36 @@ func (s *Service) Update(ctx context.Context, paymentID, status string) error {
 			With("Error", errGetPayment).
 			Error("failed to get payment")
 
-		return errGetPayment
+		return domain.ErrGetPayment
 	}
-	//TODO do this transactional
-	errUpdateBalance := s.balanceService.Update(ctx, payment.UserID, payment.Amount)
-	if errUpdateBalance != nil {
+
+	if payment.Status == Success {
 		s.logger.
-			With("Error", errUpdateBalance).
-			Error("failed to update balance")
+			With("PaymentID", paymentID).
+			Warn("Payment already processed")
+
+		return nil
+	}
+
+	//TODO do this transactional
+	if status == Success {
+		errConfirmReserve := s.balanceService.ConfirmReserve(ctx, payment.UserID, payment.Amount)
+		if errConfirmReserve != nil {
+			s.logger.
+				With("Error", errConfirmReserve).
+				Error("failed to confirm reserve")
+
+			return domain.ErrConfirmReserve
+		}
+	} else {
+		errReleaseFunds := s.balanceService.ReleaseFunds(ctx, payment.UserID, payment.Amount)
+		if errReleaseFunds != nil {
+			s.logger.
+				With("Error", errReleaseFunds).
+				Error("failed to release reserve")
+
+			return domain.ErrReleaseFunds
+		}
 	}
 
 	payment.Status = status
@@ -148,6 +171,8 @@ func (s *Service) Update(ctx context.Context, paymentID, status string) error {
 		s.logger.
 			With("Error", errUpdatePayment).
 			Error("failed to update payment")
+
+		return domain.ErrUpdatePayment
 	}
 
 	s.logger.Debug("Payment updated")

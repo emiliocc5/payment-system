@@ -2,7 +2,9 @@ package postgresql
 
 import (
 	"context"
+	"time"
 
+	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/adapters/storage"
 	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/core/domain"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -69,6 +71,18 @@ func (p *PaymentsRepository) Create(ctx context.Context, tx pgx.Tx, payment doma
 }
 
 func (p *PaymentsRepository) Update(ctx context.Context, payment domain.Payment) error {
+	query := "UPDATE payments SET status = $1, updated_at = $2 WHERE id = $3"
+
+	result, errExec := p.db.Exec(ctx, query, payment.Status, time.Now(), payment.ID)
+	if errExec != nil {
+		return errExec
+	}
+
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		return storage.ErrPaymentNotFound
+	}
+
 	return nil
 }
 
