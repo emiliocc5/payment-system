@@ -72,7 +72,7 @@ func (r *BalanceRepository) Release(ctx context.Context, userID string, amount i
 		"reserved_balance = reserved_balance - $1, " +
 		"available_balance = available_balance + $1, " +
 		"updated_at = NOW() " +
-		"WHERE user_id = $2" +
+		"WHERE user_id = $2 " +
 		"AND reserved_balance >= $1"
 
 	result, errExec := r.db.Exec(ctx, query, amount, userID)
@@ -93,7 +93,7 @@ func (r *BalanceRepository) Confirm(ctx context.Context, userID string, amount i
 		"SET " +
 		"reserved_balance = reserved_balance - $1, " +
 		"updated_at = NOW() " +
-		"WHERE user_id = $2" +
+		"WHERE user_id = $2 " +
 		"AND reserved_balance >= $1"
 
 	result, errExec := r.db.Exec(ctx, query, amount, userID)

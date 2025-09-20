@@ -10,7 +10,7 @@
 
 `\dt` --> Listar las tablas
 
-`select * from payments limit 100` --> Listar los pagos
+`select * from payments limit 100;` --> Listar los pagos
 
 
 --------------------------------------------------------------------------------
@@ -22,11 +22,16 @@
 3. Select payment-events
 4. Select produce message
 
+Message Key
+``
+"550e8400-e29b-41d4-a716-446655440000"
+``
+
 Message body
 ```
 { 
     "transaction_id": "validTransactionID",
-    "status": "ACTIVE",
+    "status": "SUCCESS",
     "metadata": {}
 }
 ```
