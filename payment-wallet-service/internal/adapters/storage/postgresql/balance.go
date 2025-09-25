@@ -39,7 +39,7 @@ func (r *BalanceRepository) Get(ctx context.Context, userID string) (*domain.Bal
 	return &balance, nil
 }
 
-func (r *BalanceRepository) ReserveFunds(ctx context.Context, tx pgx.Tx, userID string, amount int64) error {
+func (r *BalanceRepository) Reserve(ctx context.Context, tx pgx.Tx, userID string, amount int64) error {
 	uid, err := uuid.Parse(userID)
 	if err != nil {
 		return err
@@ -65,9 +65,46 @@ func (r *BalanceRepository) ReserveFunds(ctx context.Context, tx pgx.Tx, userID 
 
 	return nil
 }
-func (r *BalanceRepository) ReleaseFunds(ctx context.Context, userID string, amount int64) error {
+
+func (r *BalanceRepository) Release(ctx context.Context, tx pgx.Tx, userID string, amount int64) error {
+	query := "UPDATE balance " +
+		"SET " +
+		"reserved_balance = reserved_balance - $1, " +
+		"available_balance = available_balance + $1, " +
+		"updated_at = NOW() " +
+		"WHERE user_id = $2 " +
+		"AND reserved_balance >= $1"
+
+	result, errExec := tx.Exec(ctx, query, amount, userID)
+	if errExec != nil {
+		return errExec
+	}
+
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		return storage.ErrInsufficientReservedFunds
+	}
+
 	return nil
 }
-func (r *BalanceRepository) ConfirmReserve(ctx context.Context, userID string, amount int64) error {
+
+func (r *BalanceRepository) Confirm(ctx context.Context, tx pgx.Tx, userID string, amount int64) error {
+	query := "UPDATE balance " +
+		"SET " +
+		"reserved_balance = reserved_balance - $1, " +
+		"updated_at = NOW() " +
+		"WHERE user_id = $2 " +
+		"AND reserved_balance >= $1"
+
+	result, errExec := tx.Exec(ctx, query, amount, userID)
+	if errExec != nil {
+		return errExec
+	}
+
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		return storage.ErrInsufficientReservedFunds
+	}
+
 	return nil
 }

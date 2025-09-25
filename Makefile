@@ -23,7 +23,8 @@ clean:
 
 # Restart services
 restart:
-	docker compose restart
+	docker compose down
+	docker compose up
 
 # Start only infrastructure
 infra:

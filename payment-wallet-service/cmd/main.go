@@ -5,7 +5,11 @@ import (
 	"errors"
 	"flag"
 	"log/slog"
+	"sync"
 	"time"
+
+	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/adapters/metrics"
+	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/adapters/pubsub/kafka"
 
 	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/adapters/http"
 	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/adapters/pubsub/rabbit"
@@ -46,19 +50,49 @@ func run(logger *slog.Logger, cfg *config.Config) {
 		panic(err)
 	}
 
-	srvCfg, err := wire(ctx, logger, cfg)
+	srvCfg, asyncCfg, err := wire(ctx, logger, cfg)
 	if err != nil {
 		logger.Error("failed to wire services", "error", err)
 		panic(err)
 	}
 
+	consumer, errNewConsumer := kafka.NewService(asyncCfg)
+	if errNewConsumer != nil {
+		logger.Error("failed to create kafka consumer", "error", errNewConsumer)
+		panic(errNewConsumer)
+	}
+
 	srv := http.NewServer(srvCfg, logger)
 	httpSrv, healthy := srv.ListenAndServe(ctx)
+
+	var wg sync.WaitGroup
+
+	errChan := make(chan error, 2)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		logger.Info("Starting event consumer")
+		if err := consumer.Start(); err != nil {
+			logger.Warn("failed to start event consumer", "error", err)
+			errChan <- err
+		}
+	}()
+
+	go func() {
+		select {
+		case err := <-errChan:
+			if err != nil {
+				logger.Warn("service error occurred", "error", err)
+				//TODO decide if shutdown app
+			}
+		}
+	}()
 
 	// graceful shutdown
 	stopCh := signals.SetupSignalHandler()
 	sd, _ := signals.NewShutdown(3*time.Second, logger)
-	sd.Graceful(stopCh, httpSrv, healthy)
+	sd.Graceful(stopCh, httpSrv, consumer, healthy, &wg)
 }
 
 func migration(ctx context.Context, logger *slog.Logger, cfg *config.Config) error {
@@ -81,16 +115,18 @@ func migration(ctx context.Context, logger *slog.Logger, cfg *config.Config) err
 	return nil
 }
 
-func wire(ctx context.Context, logger *slog.Logger, cfg *config.Config) (*http.ServerConfig, error) {
+func wire(ctx context.Context, logger *slog.Logger, cfg *config.Config) (*http.ServerConfig, *kafka.ServiceConfig, error) {
 	var (
 		balanceServiceConfig  balance.ServiceConfig
 		paymentsServiceConfig payments.ServiceConfig
 		pubConfig             rabbit.Config
-		srvCfg                http.ServerConfig
+		httpSrvCfg            http.ServerConfig
+		consumerConfig        kafka.ConsumerConfig
+		asyncSrvCfg           kafka.ServiceConfig
 	)
 	db, err := postgresql.NewDatabase(ctx, cfg.StorageConfig.Dsn)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	balanceRepo := postgresql.NewPgBalanceRepository(db.DB)
@@ -103,8 +139,10 @@ func wire(ctx context.Context, logger *slog.Logger, cfg *config.Config) (*http.S
 
 	pub, errRabbitPub := rabbit.NewRabbitPub(pubConfig)
 	if errRabbitPub != nil {
-		return nil, errRabbitPub
+		return nil, nil, errRabbitPub
 	}
+
+	prometheusMetrics := metrics.NewPrometheusMetrics()
 
 	balanceServiceConfig.BalanceRepository = balanceRepo
 	balanceServiceConfig.Logger = logger
@@ -115,11 +153,21 @@ func wire(ctx context.Context, logger *slog.Logger, cfg *config.Config) (*http.S
 	paymentsServiceConfig.BalanceService = balanceSvc
 	paymentsServiceConfig.DB = db
 	paymentsServiceConfig.PublisherService = pub
+	paymentsServiceConfig.MetricsService = prometheusMetrics
 	paymentsSvc := payments.NewPaymentService(paymentsServiceConfig)
 
-	srvCfg.Port = cfg.Port
-	srvCfg.PaymentService = paymentsSvc
-	srvCfg.BalanceService = balanceSvc
+	httpSrvCfg.Port = cfg.Port
+	httpSrvCfg.PaymentService = paymentsSvc
+	httpSrvCfg.BalanceService = balanceSvc
 
-	return &srvCfg, nil
+	consumerConfig.GroupID = cfg.SubConfig.GroupID
+	consumerConfig.Topics = cfg.SubConfig.Topics
+	consumerConfig.StartOldest = cfg.SubConfig.StartOldest
+	consumerConfig.Brokers = cfg.SubConfig.Brokers
+
+	asyncSrvCfg.Logger = logger
+	asyncSrvCfg.PaymentService = paymentsSvc
+	asyncSrvCfg.ConsumerConfig = consumerConfig
+
+	return &httpSrvCfg, &asyncSrvCfg, nil
 }

@@ -20,6 +20,19 @@ services:
     networks:
       - payment-network
 
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: postgres-exporter-main
+    environment:
+      DATA_SOURCE_NAME: "postgresql://user:password@postgres-main:5432/paymentsystem?sslmode=disable"
+    ports:
+      - "9187:9187"
+    depends_on:
+      postgres-main:
+        condition: service_healthy
+    networks:
+      - payment-network
+
   rabbitmq:
     image: rabbitmq:4.0-management-alpine
     container_name: rabbitmq
@@ -52,10 +65,10 @@ services:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9092
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_CLUSTER_ID: "q1Sh-9_ISia_zwGINzRvyQ"
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
@@ -63,9 +76,13 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
       KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_JMX_OPTS: "-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=kafka -Dcom.sun.management.jmxremote.rmi.port=9999"
+      JMX_PORT: 9999
     ports:
       - "9092:9092"
+      - "29092:29092"
       - "9093:9093"
+      - "9999:9999"
     volumes:
       - kafka_data:/var/lib/kafka/data
     healthcheck:
@@ -74,6 +91,19 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
+    networks:
+      - payment-network
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.8.0
+    container_name: kafka-exporter
+    command:
+      - '--kafka.server=kafka:9092'
+    ports:
+      - "9308:9308"
+    depends_on:
+        kafka:
+          condition: service_healthy
     networks:
       - payment-network
 

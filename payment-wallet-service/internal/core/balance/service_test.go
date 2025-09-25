@@ -3,14 +3,15 @@ package balance
 import (
 	"context"
 	"errors"
-	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/core/domain"
-	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/core/ports/mocks"
-	"github.com/jackc/pgx/v5"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 	"log/slog"
 	"testing"
 	"time"
+
+	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/core/domain"
+	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/core/ports/mocks"
+	"github.com/golang/mock/gomock"
+	"github.com/jackc/pgx/v5"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewBalanceService(t *testing.T) {
@@ -54,7 +55,7 @@ func TestService_ReserveFunds(t *testing.T) {
 		}, nil).Times(1)
 
 		mockBalanceRepo.EXPECT().
-			ReserveFunds(ctx, gomock.Any(), userID, amount).Return(nil).Times(1)
+			Reserve(ctx, gomock.Any(), userID, amount).Return(nil).Times(1)
 
 		err := service.ReserveFunds(ctx, *tx, userID, amount)
 		assert.NoError(t, err)
@@ -87,11 +88,185 @@ func TestService_ReserveFunds(t *testing.T) {
 			Reserved:  0,
 			UpdatedAt: time.Time{},
 		}, nil).Times(1)
-		mockBalanceRepo.EXPECT().ReserveFunds(ctx, gomock.Any(), userID, amount).
+		mockBalanceRepo.EXPECT().Reserve(ctx, gomock.Any(), userID, amount).
 			Return(errors.New("error reserving funds")).Times(1)
 
 		err := service.ReserveFunds(ctx, *tx, userID, amount)
 		assert.Error(t, err)
 		assert.Equal(t, err, domain.ErrReserveFunds)
 	})
+}
+
+func TestService_ReleaseFunds(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name                    string
+		userID                  string
+		amount                  int64
+		getBalanceResponse      *domain.Balance
+		getBalanceError         error
+		releaseBalanceRepoError error
+		getBalanceTimes         int
+		releaseBalanceTimes     int
+		expectedError           error
+	}{
+		{
+			name:   "successful balance release",
+			userID: "valid-user-id",
+			amount: 10,
+			getBalanceResponse: &domain.Balance{
+				UserID:    "valid-user-id",
+				Available: 0,
+				Reserved:  10,
+			},
+			getBalanceTimes:     1,
+			releaseBalanceTimes: 1,
+		},
+		{
+			name:                "error getting balance",
+			userID:              "valid-user-id",
+			amount:              10,
+			getBalanceTimes:     1,
+			releaseBalanceTimes: 0,
+			getBalanceError:     errors.New("error getting balance"),
+			expectedError:       domain.ErrGetBalance,
+		},
+		{
+			name:   "insufficient balance to release",
+			userID: "valid-user-id",
+			amount: 10,
+			getBalanceResponse: &domain.Balance{
+				UserID:    "valid-user-id",
+				Available: 0,
+				Reserved:  9,
+			},
+			getBalanceTimes:     1,
+			releaseBalanceTimes: 0,
+			expectedError:       domain.ErrInsufficientFunds,
+		},
+		{
+			name:   "fail releasing balance",
+			userID: "valid-user-id",
+			amount: 10,
+			getBalanceResponse: &domain.Balance{
+				UserID:    "valid-user-id",
+				Available: 0,
+				Reserved:  10,
+			},
+			getBalanceTimes:         1,
+			releaseBalanceTimes:     1,
+			releaseBalanceRepoError: errors.New("error releasing funds"),
+			expectedError:           domain.ErrReleaseFunds,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockRepo := mocks.NewMockBalanceRepository(ctrl)
+			tx := new(pgx.Tx)
+
+			mockRepo.EXPECT().Get(context.Background(), tt.userID).
+				Return(tt.getBalanceResponse, tt.getBalanceError).Times(tt.getBalanceTimes)
+
+			mockRepo.EXPECT().Release(context.Background(), gomock.Any(), tt.userID, tt.amount).
+				Return(tt.releaseBalanceRepoError).Times(tt.releaseBalanceTimes)
+
+			cfg := &ServiceConfig{
+				Logger:            slog.Default(),
+				BalanceRepository: mockRepo,
+			}
+			service := NewBalanceService(cfg)
+
+			errReleaseFunds := service.ReleaseFunds(context.Background(), *tx, tt.userID, tt.amount)
+
+			assert.Equal(t, tt.expectedError, errReleaseFunds)
+		})
+	}
+}
+
+func TestService_ConfirmReserve(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name                    string
+		userID                  string
+		amount                  int64
+		getBalanceResponse      *domain.Balance
+		getBalanceError         error
+		confirmBalanceRepoError error
+		getBalanceTimes         int
+		confirmBalanceTimes     int
+		expectedError           error
+	}{
+		{
+			name:   "successful balance confirm",
+			userID: "valid-user-id",
+			amount: 10,
+			getBalanceResponse: &domain.Balance{
+				UserID:    "valid-user-id",
+				Available: 0,
+				Reserved:  10,
+			},
+			getBalanceTimes:     1,
+			confirmBalanceTimes: 1,
+		},
+		{
+			name:                "error getting balance",
+			userID:              "valid-user-id",
+			amount:              10,
+			getBalanceTimes:     1,
+			confirmBalanceTimes: 0,
+			getBalanceError:     errors.New("error getting balance"),
+			expectedError:       domain.ErrGetBalance,
+		},
+		{
+			name:   "insufficient balance to confirm",
+			userID: "valid-user-id",
+			amount: 10,
+			getBalanceResponse: &domain.Balance{
+				UserID:    "valid-user-id",
+				Available: 0,
+				Reserved:  9,
+			},
+			getBalanceTimes:     1,
+			confirmBalanceTimes: 0,
+			expectedError:       domain.ErrInsufficientFunds,
+		},
+		{
+			name:   "fail confirming balance",
+			userID: "valid-user-id",
+			amount: 10,
+			getBalanceResponse: &domain.Balance{
+				UserID:    "valid-user-id",
+				Available: 0,
+				Reserved:  10,
+			},
+			getBalanceTimes:         1,
+			confirmBalanceTimes:     1,
+			confirmBalanceRepoError: errors.New("error confirming"),
+			expectedError:           domain.ErrConfirmReserve,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockRepo := mocks.NewMockBalanceRepository(ctrl)
+			tx := new(pgx.Tx)
+
+			mockRepo.EXPECT().Get(context.Background(), tt.userID).
+				Return(tt.getBalanceResponse, tt.getBalanceError).Times(tt.getBalanceTimes)
+
+			mockRepo.EXPECT().Confirm(context.Background(), gomock.Any(), tt.userID, tt.amount).
+				Return(tt.confirmBalanceRepoError).Times(tt.confirmBalanceTimes)
+
+			cfg := &ServiceConfig{
+				Logger:            slog.Default(),
+				BalanceRepository: mockRepo,
+			}
+			service := NewBalanceService(cfg)
+
+			errReleaseFunds := service.ConfirmReserve(context.Background(), *tx, tt.userID, tt.amount)
+
+			assert.Equal(t, tt.expectedError, errReleaseFunds)
+		})
+	}
 }

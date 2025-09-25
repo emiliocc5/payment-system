@@ -3,14 +3,15 @@ package payments
 import (
 	"context"
 	"errors"
-	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/core/ports/mocks"
 	"log/slog"
 	"testing"
+
+	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/core/ports/mocks"
+	"github.com/golang/mock/gomock"
 
 	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/core/domain"
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func TestNewPaymentService(t *testing.T) {
@@ -19,6 +20,7 @@ func TestNewPaymentService(t *testing.T) {
 	mockPaymentRepo := mocks.NewMockPaymentRepository(gomock.NewController(t))
 	mockBalanceService := mocks.NewMockBalanceService(gomock.NewController(t))
 	mockPublisher := mocks.NewMockPublisher(gomock.NewController(t))
+	mockMetrics := mocks.NewMockMetrics(gomock.NewController(t))
 
 	config := ServiceConfig{
 		Logger:            logger,
@@ -26,6 +28,7 @@ func TestNewPaymentService(t *testing.T) {
 		PaymentRepository: mockPaymentRepo,
 		BalanceService:    mockBalanceService,
 		PublisherService:  mockPublisher,
+		MetricsService:    mockMetrics,
 	}
 
 	service := NewPaymentService(config)
@@ -46,6 +49,7 @@ func TestService_Create(t *testing.T) {
 	mockPaymentRepo := mocks.NewMockPaymentRepository(ctrl)
 	mockBalanceService := mocks.NewMockBalanceService(ctrl)
 	mockPublisher := mocks.NewMockPublisher(ctrl)
+	mockMetrics := mocks.NewMockMetrics(ctrl)
 
 	service := &Service{
 		logger:           slog.Default(),
@@ -53,6 +57,7 @@ func TestService_Create(t *testing.T) {
 		paymentRepo:      mockPaymentRepo,
 		balanceService:   mockBalanceService,
 		publisherService: mockPublisher,
+		metricsService:   mockMetrics,
 	}
 
 	ctx := context.Background()
@@ -101,6 +106,9 @@ func TestService_Create(t *testing.T) {
 		mockPublisher.EXPECT().
 			Publish(ctx, gomock.Any()).Return(nil).Times(1)
 
+		mockMetrics.EXPECT().RecordTransactionStarted(gomock.Any(), true).Times(1)
+		mockMetrics.EXPECT().RecordTransactionProcessingTime(gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
+
 		err := service.Create(ctx, request)
 		assert.NoError(t, err)
 	})
@@ -120,6 +128,9 @@ func TestService_Create(t *testing.T) {
 		mockBalanceService.EXPECT().ReserveFunds(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 		mockPaymentRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 		mockPublisher.EXPECT().Publish(gomock.Any(), gomock.Any()).Times(0)
+		mockMetrics.EXPECT().RecordTransactionCompleted(gomock.Any(), gomock.Any()).Times(0)
+		mockMetrics.EXPECT().RecordTransactionProcessingTime(gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
+		mockMetrics.EXPECT().RecordTransactionIdempotent(gomock.Any()).Times(1)
 
 		err := service.Create(ctx, request)
 		assert.NoError(t, err)
@@ -134,6 +145,9 @@ func TestService_Create(t *testing.T) {
 				return fn(dummyTx)
 			},
 		)
+		mockMetrics.EXPECT().RecordTransactionStarted(gomock.Any(), false).Times(1)
+		mockMetrics.EXPECT().RecordTransactionProcessingTime(gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
+		mockMetrics.EXPECT().RecordTransactionIdempotent(gomock.Any()).Times(0)
 
 		mockPaymentRepo.EXPECT().
 			CheckIdempotency(ctx, gomock.Any(), request.IdempotencyKey).
@@ -161,6 +175,10 @@ func TestService_Create(t *testing.T) {
 		mockBalanceService.EXPECT().
 			ReserveFunds(ctx, gomock.Any(), request.UserID, request.Amount).
 			Return(expectedError)
+
+		mockMetrics.EXPECT().RecordTransactionStarted(gomock.Any(), false).Times(1)
+		mockMetrics.EXPECT().RecordTransactionProcessingTime(gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
+		mockMetrics.EXPECT().RecordTransactionIdempotent(gomock.Any()).Times(0)
 
 		err := service.Create(ctx, request)
 		assert.Error(t, err)
@@ -191,6 +209,10 @@ func TestService_Create(t *testing.T) {
 
 		mockPublisher.EXPECT().Publish(gomock.Any(), gomock.Any()).Times(0)
 
+		mockMetrics.EXPECT().RecordTransactionStarted(gomock.Any(), false).Times(1)
+		mockMetrics.EXPECT().RecordTransactionProcessingTime(gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
+		mockMetrics.EXPECT().RecordTransactionIdempotent(gomock.Any()).Times(0)
+
 		err := service.Create(ctx, request)
 		assert.Error(t, err)
 		assert.Equal(t, domain.ErrCreatePayment, err)
@@ -215,6 +237,7 @@ func BenchmarkService_Create(b *testing.B) {
 	mockPaymentRepo := mocks.NewMockPaymentRepository(ctrl)
 	mockBalanceService := mocks.NewMockBalanceService(ctrl)
 	mockPublisher := mocks.NewMockPublisher(ctrl)
+	mockMetrics := mocks.NewMockMetrics(ctrl)
 
 	service := &Service{
 		logger:           slog.Default(),
@@ -222,6 +245,7 @@ func BenchmarkService_Create(b *testing.B) {
 		paymentRepo:      mockPaymentRepo,
 		balanceService:   mockBalanceService,
 		publisherService: mockPublisher,
+		metricsService:   mockMetrics,
 	}
 
 	ctx := context.Background()
@@ -244,9 +268,173 @@ func BenchmarkService_Create(b *testing.B) {
 	mockBalanceService.EXPECT().ReserveFunds(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mockPaymentRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mockPublisher.EXPECT().Publish(gomock.Any(), gomock.Any()).AnyTimes()
+	mockMetrics.EXPECT().RecordTransactionCompleted(gomock.Any(), gomock.Any()).AnyTimes()
+	mockMetrics.EXPECT().RecordTransactionProcessingTime(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = service.Create(ctx, request)
+	}
+}
+
+func TestService_Update(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name                       string
+		paymentID                  string
+		status                     string
+		getPaymentRepoResp         *domain.Payment
+		getPaymentRepoErr          error
+		confirmReserveServiceErr   error
+		releaseReserveServiceErr   error
+		updatePaymentRepoErr       error
+		getPaymentServiceTimes     int
+		confirmReserveServiceTimes int
+		releaseReserveServiceTimes int
+		updatePaymentRepoTimes     int
+		successMetric              bool
+		publishMetricTimes         int
+		expectedError              error
+	}{
+		{
+			name:      "Success update payment",
+			paymentID: "payment-id",
+			status:    Success,
+			getPaymentRepoResp: &domain.Payment{
+				ID:           "payment-id",
+				Amount:       100.0,
+				ServiceID:    "service-1",
+				ClientNumber: "client-456",
+				Status:       Pending,
+			},
+			getPaymentServiceTimes:     1,
+			confirmReserveServiceTimes: 1,
+			updatePaymentRepoTimes:     1,
+			successMetric:              true,
+			publishMetricTimes:         1,
+		},
+		{
+			name:                       "Error getting payment",
+			paymentID:                  "payment-id",
+			status:                     Success,
+			getPaymentRepoErr:          errors.New("get payment error"),
+			getPaymentServiceTimes:     1,
+			confirmReserveServiceTimes: 0,
+			updatePaymentRepoTimes:     0,
+			publishMetricTimes:         0,
+			expectedError:              domain.ErrGetPayment,
+		},
+		{
+			name:      "Payment update idempotency",
+			paymentID: "payment-id",
+			status:    Success,
+			getPaymentRepoResp: &domain.Payment{
+				ID:           "payment-id",
+				Amount:       100.0,
+				ServiceID:    "service-1",
+				ClientNumber: "client-456",
+				Status:       Success,
+			},
+			getPaymentServiceTimes:     1,
+			confirmReserveServiceTimes: 0,
+			updatePaymentRepoTimes:     0,
+			publishMetricTimes:         0,
+		},
+		{
+			name:      "Payment not success then release funds",
+			paymentID: "payment-id",
+			status:    "Error",
+			getPaymentRepoResp: &domain.Payment{
+				ID:           "payment-id",
+				Amount:       100.0,
+				ServiceID:    "service-1",
+				ClientNumber: "client-456",
+				Status:       Pending,
+			},
+			getPaymentServiceTimes:     1,
+			releaseReserveServiceTimes: 1,
+			updatePaymentRepoTimes:     1,
+			successMetric:              true,
+			publishMetricTimes:         1,
+		},
+		{
+			name:      "Success update payment",
+			paymentID: "payment-id",
+			status:    Success,
+			getPaymentRepoResp: &domain.Payment{
+				ID:           "payment-id",
+				Amount:       100.0,
+				ServiceID:    "service-1",
+				ClientNumber: "client-456",
+				Status:       Pending,
+			},
+			getPaymentServiceTimes:     1,
+			confirmReserveServiceTimes: 1,
+			confirmReserveServiceErr:   errors.New("confirm reserve error"),
+			updatePaymentRepoTimes:     0,
+			publishMetricTimes:         0,
+			expectedError:              domain.ErrConfirmReserve,
+		},
+		{
+			name:      "Success update payment",
+			paymentID: "payment-id",
+			status:    Success,
+			getPaymentRepoResp: &domain.Payment{
+				ID:           "payment-id",
+				Amount:       100.0,
+				ServiceID:    "service-1",
+				ClientNumber: "client-456",
+				Status:       Pending,
+			},
+			getPaymentServiceTimes:     1,
+			confirmReserveServiceTimes: 1,
+			updatePaymentRepoTimes:     1,
+			updatePaymentRepoErr:       errors.New("update payment error"),
+			publishMetricTimes:         0,
+			expectedError:              domain.ErrUpdatePayment,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockPaymentRepo := mocks.NewMockPaymentRepository(ctrl)
+			mockBalanceService := mocks.NewMockBalanceService(ctrl)
+			mockMetrics := mocks.NewMockMetrics(ctrl)
+			mockDB := mocks.NewMockDatabase(ctrl)
+
+			mockDB.EXPECT().WithTx(context.Background(), gomock.Any()).DoAndReturn(
+				func(ctx context.Context, fn func(*pgx.Tx) error) error {
+					dummyTx := new(pgx.Tx)
+					return fn(dummyTx)
+				},
+			).AnyTimes()
+
+			mockPaymentRepo.EXPECT().Get(context.Background(), tt.paymentID).
+				Return(tt.getPaymentRepoResp, tt.getPaymentRepoErr).Times(tt.getPaymentServiceTimes)
+			mockBalanceService.EXPECT().ConfirmReserve(context.Background(), gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(tt.confirmReserveServiceErr).Times(tt.confirmReserveServiceTimes)
+			mockBalanceService.EXPECT().ReleaseFunds(context.Background(), gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(tt.releaseReserveServiceErr).Times(tt.releaseReserveServiceTimes)
+			mockPaymentRepo.EXPECT().Update(context.Background(), gomock.Any(), gomock.Any()).
+				Return(tt.updatePaymentRepoErr).Times(tt.updatePaymentRepoTimes)
+			mockMetrics.EXPECT().RecordTransactionCompleted(PaymentTransactionType, tt.status).
+				Times(tt.publishMetricTimes)
+			mockMetrics.EXPECT().RecordTransactionProcessingTime(PaymentTransactionType, tt.status, gomock.Any()).
+				Times(1)
+
+			cfg := ServiceConfig{
+				PaymentRepository: mockPaymentRepo,
+				BalanceService:    mockBalanceService,
+				MetricsService:    mockMetrics,
+				DB:                mockDB,
+				Logger:            slog.Default(),
+			}
+
+			paymentService := NewPaymentService(cfg)
+
+			err := paymentService.Update(context.Background(), tt.paymentID, tt.status)
+
+			assert.Equal(t, tt.expectedError, err)
+		})
 	}
 }

@@ -2,7 +2,9 @@ package postgresql
 
 import (
 	"context"
+	"time"
 
+	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/adapters/storage"
 	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/core/domain"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -10,7 +12,8 @@ import (
 )
 
 type PaymentsRepository struct {
-	db *pgxpool.Pool
+	db  *pgxpool.Pool
+	db2 Database
 }
 
 func NewPgPaymentsRepository(db *pgxpool.Pool) *PaymentsRepository {
@@ -26,6 +29,7 @@ func (p *PaymentsRepository) CheckIdempotency(ctx context.Context, tx pgx.Tx, id
 		return false, err
 	}
 	return count > 0, nil
+
 }
 
 func (p *PaymentsRepository) Create(ctx context.Context, tx pgx.Tx, payment domain.Payment) error {
@@ -68,6 +72,43 @@ func (p *PaymentsRepository) Create(ctx context.Context, tx pgx.Tx, payment doma
 	return nil
 }
 
-func (p *PaymentsRepository) Update(ctx context.Context, payment domain.Payment) error {
+func (p *PaymentsRepository) Update(ctx context.Context, tx pgx.Tx, payment domain.Payment) error {
+	query := "UPDATE payments SET status = $1, updated_at = $2 WHERE id = $3"
+
+	result, errExec := tx.Exec(ctx, query, payment.Status, time.Now(), payment.ID)
+	if errExec != nil {
+		return errExec
+	}
+
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		return storage.ErrPaymentNotFound
+	}
+
 	return nil
+}
+
+func (p *PaymentsRepository) Get(ctx context.Context, paymentID string) (*domain.Payment, error) {
+	query := `
+		SELECT id, idempotency_key, user_id, amount, status, service_id, client_number, created_at, updated_at
+		FROM payments
+		WHERE id = $1
+	`
+	var payment domain.Payment
+	err := p.db.QueryRow(ctx, query, paymentID).Scan(
+		&payment.ID,
+		&payment.IdempotencyKey,
+		&payment.UserID,
+		&payment.Amount,
+		&payment.Status,
+		&payment.ServiceID,
+		&payment.ClientNumber,
+		&payment.CreatedAt,
+		&payment.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &payment, nil
 }

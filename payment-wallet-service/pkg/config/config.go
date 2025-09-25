@@ -14,6 +14,7 @@ type Config struct {
 	Port          int            `yaml:"port"`
 	StorageConfig *StorageConfig `yaml:"storage"`
 	PubConfig     *PubConfig     `yaml:"pub"`
+	SubConfig     *SubConfig     `yaml:"sub"`
 }
 
 type StorageConfig struct {
@@ -24,6 +25,13 @@ type PubConfig struct {
 	RabbitURL  string `yaml:"rabbit-url"`
 	Exchange   string `yaml:"exchange"`
 	RoutingKey string `yaml:"routing-key"`
+}
+
+type SubConfig struct {
+	Brokers     []string `yaml:"brokers"`
+	GroupID     string   `yaml:"group-id"`
+	Topics      []string `yaml:"topics"`
+	StartOldest bool     `yaml:"start-oldest"`
 }
 
 func Parse(path string, file string) (*Config, error) {

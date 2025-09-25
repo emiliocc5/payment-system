@@ -7,16 +7,18 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-//go:generate mockgen -destination=../mocks/balance_ports_mock.go -package=mocks -source=balance.go
+//go:generate mockgen -destination=./mocks/balance_ports_mock.go -package=mocks -source=balance.go
 
 type BalanceRepository interface {
 	Get(ctx context.Context, userID string) (*domain.Balance, error)
-	ReserveFunds(ctx context.Context, tx pgx.Tx, userID string, amount int64) error
-	ReleaseFunds(ctx context.Context, userID string, amount int64) error
-	ConfirmReserve(ctx context.Context, userID string, amount int64) error
+	Reserve(ctx context.Context, tx pgx.Tx, userID string, amount int64) error
+	Release(ctx context.Context, tx pgx.Tx, userID string, amount int64) error
+	Confirm(ctx context.Context, tx pgx.Tx, userID string, amount int64) error
 }
 
+// TODO refactor this to not depend of pgx.TX
 type BalanceService interface {
 	ReserveFunds(ctx context.Context, tx pgx.Tx, userID string, amount int64) error
-	Update(ctx context.Context, userID string, amount int64) error
+	ReleaseFunds(ctx context.Context, tx pgx.Tx, userID string, amount int64) error
+	ConfirmReserve(ctx context.Context, tx pgx.Tx, userID string, amount int64) error
 }

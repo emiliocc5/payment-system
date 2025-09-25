@@ -19,7 +19,7 @@ func TestHealthHandler(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusServiceUnavailable {
-		t.Errorf("handler returned wrong status code: got %v want %v",
+		t.Errorf("httpHandler returned wrong status code: got %v want %v",
 			status, http.StatusServiceUnavailable)
 	}
 }

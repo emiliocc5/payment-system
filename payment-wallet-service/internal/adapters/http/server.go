@@ -6,11 +6,17 @@ import (
 	"log/slog"
 
 	"github.com/emiliocc5/payment-system/payment-wallet-service/internal/core/ports"
+	"github.com/emiliocc5/payment-system/payment-wallet-service/pkg/metrics"
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"net/http"
 	"sync/atomic"
 	"time"
+)
+
+var (
+	_healthy int32
 )
 
 type ServerConfig struct {
@@ -23,14 +29,10 @@ type Server struct {
 	port           int
 	logger         *slog.Logger
 	router         *mux.Router
-	handler        http.Handler
+	httpHandler    http.Handler
 	paymentService ports.PaymentService
 	balanceService ports.BalanceService
 }
-
-var (
-	_healthy int32
-)
 
 func NewServer(cfg *ServerConfig, logger *slog.Logger) *Server {
 	return &Server{
@@ -44,8 +46,12 @@ func NewServer(cfg *ServerConfig, logger *slog.Logger) *Server {
 
 func (s *Server) registerHandlers() {
 	sub := s.router.PathPrefix("/v1").Subrouter()
+	sub.Handle("/metrics", promhttp.Handler()).Methods(http.MethodGet)
 	sub.HandleFunc("/health", s.healthHandler).Methods(http.MethodGet)
+
 	sub.HandleFunc("/payments", s.createPaymentHandler).Methods(http.MethodPost)
+
+	s.httpHandler = metrics.Middleware(s.router, *s.logger)
 }
 
 func (s *Server) start() *http.Server {
@@ -55,7 +61,7 @@ func (s *Server) start() *http.Server {
 
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", s.port),
-		Handler:           s.handler,
+		Handler:           s.httpHandler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -71,13 +77,10 @@ func (s *Server) start() *http.Server {
 
 func (s *Server) ListenAndServe(ctx context.Context) (*http.Server, *int32) {
 	s.registerHandlers()
-	s.handler = s.router
 
 	srv := s.start()
 
 	atomic.StoreInt32(&_healthy, 1)
-
-	//go s.ps.Listen(ctx)
 
 	return srv, &_healthy
 }
