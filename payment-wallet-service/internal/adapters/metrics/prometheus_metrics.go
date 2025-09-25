@@ -39,7 +39,7 @@ func NewPrometheusMetrics() *PrometheusMetrics {
 				Name: "payment_wallet_transactions_started_total",
 				Help: "Total number of transactions started",
 			},
-			[]string{"transaction_type, success"},
+			[]string{"transaction_type", "status"},
 		),
 		transactionsCompleted: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -61,7 +61,7 @@ func NewPrometheusMetrics() *PrometheusMetrics {
 				Help:    "Time taken to process transactions",
 				Buckets: []float64{0.1, 0.5, 1, 2, 5, 10, 30},
 			},
-			[]string{"transaction_type"},
+			[]string{"transaction_type", "status"},
 		),
 
 		dbOperationDuration: prometheus.NewHistogramVec(

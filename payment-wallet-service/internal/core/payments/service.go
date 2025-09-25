@@ -127,10 +127,6 @@ func (s *Service) Create(ctx context.Context, request domain.CreatePaymentReques
 
 func (s *Service) Update(ctx context.Context, paymentID, status string) error {
 	start := time.Now()
-	defer func() {
-		duration := time.Since(start)
-		s.metricsService.RecordTransactionProcessingTime(PaymentTransactionType, status, duration)
-	}()
 	payment, errGetPayment := s.paymentRepo.Get(ctx, paymentID)
 	if errGetPayment != nil {
 		s.logger.
@@ -149,6 +145,10 @@ func (s *Service) Update(ctx context.Context, paymentID, status string) error {
 	}
 
 	return s.db.WithTx(ctx, func(tx *pgx.Tx) error {
+		defer func() {
+			duration := time.Since(start)
+			s.metricsService.RecordTransactionProcessingTime(PaymentTransactionType, status, duration)
+		}()
 		if status == Success {
 			errConfirmReserve := s.balanceService.ConfirmReserve(ctx, *tx, payment.UserID, payment.Amount)
 			if errConfirmReserve != nil {

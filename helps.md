@@ -30,7 +30,7 @@ Message Key
 Message body
 ```
 { 
-    "transaction_id": "validTransactionID",
+    "transaction_id": "2ed244f7-2711-42fb-974b-7ff4e70e7a4c",
     "status": "SUCCESS",
     "metadata": {}
 }
