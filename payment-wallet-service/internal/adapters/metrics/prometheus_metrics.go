@@ -1,8 +1,9 @@
 package metrics
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type PrometheusMetrics struct {
@@ -38,14 +39,14 @@ func NewPrometheusMetrics() *PrometheusMetrics {
 				Name: "payment_wallet_transactions_started_total",
 				Help: "Total number of transactions started",
 			},
-			[]string{"transaction_type"},
+			[]string{"transaction_type, success"},
 		),
 		transactionsCompleted: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "payment_wallet_transactions_completed_total",
 				Help: "Total number of transactions completed",
 			},
-			[]string{"transaction_type", "success"},
+			[]string{"transaction_type", "status"},
 		),
 		transactionAmount: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -113,24 +114,24 @@ func (m *PrometheusMetrics) RecordTransactionIdempotent(transactionType string) 
 	m.transactionsIdempotent.WithLabelValues(transactionType).Inc()
 }
 
-func (m *PrometheusMetrics) RecordTransactionStarted(transactionType string) {
-	m.transactionsStarted.WithLabelValues(transactionType).Inc()
-}
-
-func (m *PrometheusMetrics) RecordTransactionCompleted(transactionType string, success bool) {
+func (m *PrometheusMetrics) RecordTransactionStarted(transactionType string, success bool) {
 	successStr := "false"
 	if success {
 		successStr = "true"
 	}
-	m.transactionsCompleted.WithLabelValues(transactionType, successStr).Inc()
+	m.transactionsStarted.WithLabelValues(transactionType, successStr).Inc()
+}
+
+func (m *PrometheusMetrics) RecordTransactionCompleted(transactionType string, status string) {
+	m.transactionsCompleted.WithLabelValues(transactionType, status).Inc()
 }
 
 func (m *PrometheusMetrics) RecordTransactionAmount(transactionType string, amount float64) {
 	m.transactionAmount.WithLabelValues(transactionType).Add(amount)
 }
 
-func (m *PrometheusMetrics) RecordTransactionProcessingTime(transactionType string, duration time.Duration) {
-	m.transactionProcessingDuration.WithLabelValues(transactionType).Observe(duration.Seconds())
+func (m *PrometheusMetrics) RecordTransactionProcessingTime(transactionType, status string, duration time.Duration) {
+	m.transactionProcessingDuration.WithLabelValues(transactionType, status).Observe(duration.Seconds())
 }
 
 func (m *PrometheusMetrics) RecordDatabaseOperationDuration(operation string, duration time.Duration) {

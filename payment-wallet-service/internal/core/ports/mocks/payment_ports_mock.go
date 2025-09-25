@@ -81,17 +81,17 @@ func (mr *MockPaymentRepositoryMockRecorder) Get(ctx, paymentID interface{}) *go
 }
 
 // Update mocks base method.
-func (m *MockPaymentRepository) Update(ctx context.Context, payment domain.Payment) error {
+func (m *MockPaymentRepository) Update(ctx context.Context, tx pgx.Tx, payment domain.Payment) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Update", ctx, payment)
+	ret := m.ctrl.Call(m, "Update", ctx, tx, payment)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Update indicates an expected call of Update.
-func (mr *MockPaymentRepositoryMockRecorder) Update(ctx, payment interface{}) *gomock.Call {
+func (mr *MockPaymentRepositoryMockRecorder) Update(ctx, tx, payment interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockPaymentRepository)(nil).Update), ctx, payment)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockPaymentRepository)(nil).Update), ctx, tx, payment)
 }
 
 // MockPaymentService is a mock of PaymentService interface.

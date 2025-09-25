@@ -66,7 +66,7 @@ func (r *BalanceRepository) Reserve(ctx context.Context, tx pgx.Tx, userID strin
 	return nil
 }
 
-func (r *BalanceRepository) Release(ctx context.Context, userID string, amount int64) error {
+func (r *BalanceRepository) Release(ctx context.Context, tx pgx.Tx, userID string, amount int64) error {
 	query := "UPDATE balance " +
 		"SET " +
 		"reserved_balance = reserved_balance - $1, " +
@@ -75,7 +75,7 @@ func (r *BalanceRepository) Release(ctx context.Context, userID string, amount i
 		"WHERE user_id = $2 " +
 		"AND reserved_balance >= $1"
 
-	result, errExec := r.db.Exec(ctx, query, amount, userID)
+	result, errExec := tx.Exec(ctx, query, amount, userID)
 	if errExec != nil {
 		return errExec
 	}
@@ -88,7 +88,7 @@ func (r *BalanceRepository) Release(ctx context.Context, userID string, amount i
 	return nil
 }
 
-func (r *BalanceRepository) Confirm(ctx context.Context, userID string, amount int64) error {
+func (r *BalanceRepository) Confirm(ctx context.Context, tx pgx.Tx, userID string, amount int64) error {
 	query := "UPDATE balance " +
 		"SET " +
 		"reserved_balance = reserved_balance - $1, " +
@@ -96,7 +96,7 @@ func (r *BalanceRepository) Confirm(ctx context.Context, userID string, amount i
 		"WHERE user_id = $2 " +
 		"AND reserved_balance >= $1"
 
-	result, errExec := r.db.Exec(ctx, query, amount, userID)
+	result, errExec := tx.Exec(ctx, query, amount, userID)
 	if errExec != nil {
 		return errExec
 	}

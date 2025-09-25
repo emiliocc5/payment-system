@@ -37,17 +37,17 @@ func (m *MockBalanceRepository) EXPECT() *MockBalanceRepositoryMockRecorder {
 }
 
 // Confirm mocks base method.
-func (m *MockBalanceRepository) Confirm(ctx context.Context, userID string, amount int64) error {
+func (m *MockBalanceRepository) Confirm(ctx context.Context, tx pgx.Tx, userID string, amount int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Confirm", ctx, userID, amount)
+	ret := m.ctrl.Call(m, "Confirm", ctx, tx, userID, amount)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Confirm indicates an expected call of Confirm.
-func (mr *MockBalanceRepositoryMockRecorder) Confirm(ctx, userID, amount interface{}) *gomock.Call {
+func (mr *MockBalanceRepositoryMockRecorder) Confirm(ctx, tx, userID, amount interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Confirm", reflect.TypeOf((*MockBalanceRepository)(nil).Confirm), ctx, userID, amount)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Confirm", reflect.TypeOf((*MockBalanceRepository)(nil).Confirm), ctx, tx, userID, amount)
 }
 
 // Get mocks base method.
@@ -66,17 +66,17 @@ func (mr *MockBalanceRepositoryMockRecorder) Get(ctx, userID interface{}) *gomoc
 }
 
 // Release mocks base method.
-func (m *MockBalanceRepository) Release(ctx context.Context, userID string, amount int64) error {
+func (m *MockBalanceRepository) Release(ctx context.Context, tx pgx.Tx, userID string, amount int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Release", ctx, userID, amount)
+	ret := m.ctrl.Call(m, "Release", ctx, tx, userID, amount)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Release indicates an expected call of Release.
-func (mr *MockBalanceRepositoryMockRecorder) Release(ctx, userID, amount interface{}) *gomock.Call {
+func (mr *MockBalanceRepositoryMockRecorder) Release(ctx, tx, userID, amount interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Release", reflect.TypeOf((*MockBalanceRepository)(nil).Release), ctx, userID, amount)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Release", reflect.TypeOf((*MockBalanceRepository)(nil).Release), ctx, tx, userID, amount)
 }
 
 // Reserve mocks base method.
@@ -117,31 +117,31 @@ func (m *MockBalanceService) EXPECT() *MockBalanceServiceMockRecorder {
 }
 
 // ConfirmReserve mocks base method.
-func (m *MockBalanceService) ConfirmReserve(ctx context.Context, userID string, amount int64) error {
+func (m *MockBalanceService) ConfirmReserve(ctx context.Context, tx pgx.Tx, userID string, amount int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ConfirmReserve", ctx, userID, amount)
+	ret := m.ctrl.Call(m, "ConfirmReserve", ctx, tx, userID, amount)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ConfirmReserve indicates an expected call of ConfirmReserve.
-func (mr *MockBalanceServiceMockRecorder) ConfirmReserve(ctx, userID, amount interface{}) *gomock.Call {
+func (mr *MockBalanceServiceMockRecorder) ConfirmReserve(ctx, tx, userID, amount interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConfirmReserve", reflect.TypeOf((*MockBalanceService)(nil).ConfirmReserve), ctx, userID, amount)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConfirmReserve", reflect.TypeOf((*MockBalanceService)(nil).ConfirmReserve), ctx, tx, userID, amount)
 }
 
 // ReleaseFunds mocks base method.
-func (m *MockBalanceService) ReleaseFunds(ctx context.Context, userID string, amount int64) error {
+func (m *MockBalanceService) ReleaseFunds(ctx context.Context, tx pgx.Tx, userID string, amount int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReleaseFunds", ctx, userID, amount)
+	ret := m.ctrl.Call(m, "ReleaseFunds", ctx, tx, userID, amount)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ReleaseFunds indicates an expected call of ReleaseFunds.
-func (mr *MockBalanceServiceMockRecorder) ReleaseFunds(ctx, userID, amount interface{}) *gomock.Call {
+func (mr *MockBalanceServiceMockRecorder) ReleaseFunds(ctx, tx, userID, amount interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseFunds", reflect.TypeOf((*MockBalanceService)(nil).ReleaseFunds), ctx, userID, amount)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseFunds", reflect.TypeOf((*MockBalanceService)(nil).ReleaseFunds), ctx, tx, userID, amount)
 }
 
 // ReserveFunds mocks base method.

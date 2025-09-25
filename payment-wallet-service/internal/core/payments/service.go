@@ -52,7 +52,7 @@ func (s *Service) Create(ctx context.Context, request domain.CreatePaymentReques
 
 		defer func() {
 			duration := time.Since(start)
-			s.metricsService.RecordTransactionProcessingTime(PaymentTransactionType, duration)
+			s.metricsService.RecordTransactionProcessingTime(PaymentTransactionType, Pending, duration)
 		}()
 
 		exists, err := s.paymentRepo.CheckIdempotency(ctx, *tx, request.IdempotencyKey)
@@ -61,7 +61,7 @@ func (s *Service) Create(ctx context.Context, request domain.CreatePaymentReques
 				slog.Any("error", err),
 				slog.String("idempotency_key", request.IdempotencyKey))
 
-			s.metricsService.RecordTransactionCompleted(PaymentTransactionType, false)
+			s.metricsService.RecordTransactionStarted(PaymentTransactionType, false)
 
 			return domain.ErrCheckIdempotency
 		}
@@ -74,7 +74,7 @@ func (s *Service) Create(ctx context.Context, request domain.CreatePaymentReques
 
 		err = s.balanceService.ReserveFunds(ctx, *tx, request.UserID, request.Amount)
 		if err != nil {
-			s.metricsService.RecordTransactionCompleted(PaymentTransactionType, false)
+			s.metricsService.RecordTransactionStarted(PaymentTransactionType, false)
 
 			return err
 		}
@@ -96,12 +96,12 @@ func (s *Service) Create(ctx context.Context, request domain.CreatePaymentReques
 			slog.Error("failed to create payment",
 				slog.Any("error", errCreate),
 				slog.String("user_id", request.UserID))
-			s.metricsService.RecordTransactionCompleted(PaymentTransactionType, false)
+			s.metricsService.RecordTransactionStarted(PaymentTransactionType, false)
 
 			return domain.ErrCreatePayment
 		}
 
-		s.metricsService.RecordTransactionStarted(PaymentTransactionType)
+		s.metricsService.RecordTransactionStarted(PaymentTransactionType, true)
 
 		paymentInitiatedEvent := &domain.PaymentInitiatedEvent{
 			UserID:        payment.UserID,
@@ -126,6 +126,11 @@ func (s *Service) Create(ctx context.Context, request domain.CreatePaymentReques
 }
 
 func (s *Service) Update(ctx context.Context, paymentID, status string) error {
+	start := time.Now()
+	defer func() {
+		duration := time.Since(start)
+		s.metricsService.RecordTransactionProcessingTime(PaymentTransactionType, status, duration)
+	}()
 	payment, errGetPayment := s.paymentRepo.Get(ctx, paymentID)
 	if errGetPayment != nil {
 		s.logger.
@@ -143,40 +148,41 @@ func (s *Service) Update(ctx context.Context, paymentID, status string) error {
 		return nil
 	}
 
-	//TODO do this transactional
-	if status == Success {
-		errConfirmReserve := s.balanceService.ConfirmReserve(ctx, payment.UserID, payment.Amount)
-		if errConfirmReserve != nil {
-			s.logger.
-				With("Error", errConfirmReserve).
-				Error("failed to confirm reserve")
+	return s.db.WithTx(ctx, func(tx *pgx.Tx) error {
+		if status == Success {
+			errConfirmReserve := s.balanceService.ConfirmReserve(ctx, *tx, payment.UserID, payment.Amount)
+			if errConfirmReserve != nil {
+				s.logger.
+					With("Error", errConfirmReserve).
+					Error("failed to confirm reserve")
 
-			return domain.ErrConfirmReserve
+				return domain.ErrConfirmReserve
+			}
+		} else {
+			errReleaseFunds := s.balanceService.ReleaseFunds(ctx, *tx, payment.UserID, payment.Amount)
+			if errReleaseFunds != nil {
+				s.logger.
+					With("Error", errReleaseFunds).
+					Error("failed to release reserve")
+
+				return domain.ErrReleaseFunds
+			}
 		}
-	} else {
-		errReleaseFunds := s.balanceService.ReleaseFunds(ctx, payment.UserID, payment.Amount)
-		if errReleaseFunds != nil {
+
+		payment.Status = status
+
+		errUpdatePayment := s.paymentRepo.Update(ctx, *tx, *payment)
+		if errUpdatePayment != nil {
 			s.logger.
-				With("Error", errReleaseFunds).
-				Error("failed to release reserve")
+				With("Error", errUpdatePayment).
+				Error("failed to update payment")
 
-			return domain.ErrReleaseFunds
+			return domain.ErrUpdatePayment
 		}
-	}
 
-	payment.Status = status
+		s.logger.Debug("Payment updated")
+		s.metricsService.RecordTransactionCompleted(PaymentTransactionType, status)
 
-	errUpdatePayment := s.paymentRepo.Update(ctx, *payment)
-	if errUpdatePayment != nil {
-		s.logger.
-			With("Error", errUpdatePayment).
-			Error("failed to update payment")
-
-		return domain.ErrUpdatePayment
-	}
-
-	s.logger.Debug("Payment updated")
-	s.metricsService.RecordTransactionCompleted(PaymentTransactionType, true)
-
-	return nil
+		return nil
+	})
 }

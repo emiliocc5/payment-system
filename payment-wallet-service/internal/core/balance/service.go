@@ -52,7 +52,7 @@ func (s *Service) ReserveFunds(ctx context.Context, tx pgx.Tx, userID string, am
 	return nil
 }
 
-func (s *Service) ReleaseFunds(ctx context.Context, userID string, amount int64) error {
+func (s *Service) ReleaseFunds(ctx context.Context, tx pgx.Tx, userID string, amount int64) error {
 	balance, errGetBalance := s.balanceRepo.Get(ctx, userID)
 	if errGetBalance != nil {
 		s.logger.Error("failed to get user balance",
@@ -65,7 +65,7 @@ func (s *Service) ReleaseFunds(ctx context.Context, userID string, amount int64)
 		return domain.ErrInsufficientFunds
 	}
 
-	errRelease := s.balanceRepo.Release(ctx, userID, amount)
+	errRelease := s.balanceRepo.Release(ctx, tx, userID, amount)
 	if errRelease != nil {
 		s.logger.
 			With("error", errRelease).
@@ -77,7 +77,7 @@ func (s *Service) ReleaseFunds(ctx context.Context, userID string, amount int64)
 	return nil
 }
 
-func (s *Service) ConfirmReserve(ctx context.Context, userID string, amount int64) error {
+func (s *Service) ConfirmReserve(ctx context.Context, tx pgx.Tx, userID string, amount int64) error {
 	balance, errGetBalance := s.balanceRepo.Get(ctx, userID)
 	if errGetBalance != nil {
 		s.logger.Error("failed to get user balance",
@@ -90,7 +90,7 @@ func (s *Service) ConfirmReserve(ctx context.Context, userID string, amount int6
 		return domain.ErrInsufficientFunds
 	}
 
-	errConfirm := s.balanceRepo.Confirm(ctx, userID, amount)
+	errConfirm := s.balanceRepo.Confirm(ctx, tx, userID, amount)
 	if errConfirm != nil {
 		s.logger.
 			With("error", errConfirm).

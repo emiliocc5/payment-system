@@ -163,11 +163,12 @@ func TestService_ReleaseFunds(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockRepo := mocks.NewMockBalanceRepository(ctrl)
+			tx := new(pgx.Tx)
 
 			mockRepo.EXPECT().Get(context.Background(), tt.userID).
 				Return(tt.getBalanceResponse, tt.getBalanceError).Times(tt.getBalanceTimes)
 
-			mockRepo.EXPECT().Release(context.Background(), tt.userID, tt.amount).
+			mockRepo.EXPECT().Release(context.Background(), gomock.Any(), tt.userID, tt.amount).
 				Return(tt.releaseBalanceRepoError).Times(tt.releaseBalanceTimes)
 
 			cfg := &ServiceConfig{
@@ -176,7 +177,7 @@ func TestService_ReleaseFunds(t *testing.T) {
 			}
 			service := NewBalanceService(cfg)
 
-			errReleaseFunds := service.ReleaseFunds(context.Background(), tt.userID, tt.amount)
+			errReleaseFunds := service.ReleaseFunds(context.Background(), *tx, tt.userID, tt.amount)
 
 			assert.Equal(t, tt.expectedError, errReleaseFunds)
 		})
@@ -249,11 +250,12 @@ func TestService_ConfirmReserve(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockRepo := mocks.NewMockBalanceRepository(ctrl)
+			tx := new(pgx.Tx)
 
 			mockRepo.EXPECT().Get(context.Background(), tt.userID).
 				Return(tt.getBalanceResponse, tt.getBalanceError).Times(tt.getBalanceTimes)
 
-			mockRepo.EXPECT().Confirm(context.Background(), tt.userID, tt.amount).
+			mockRepo.EXPECT().Confirm(context.Background(), gomock.Any(), tt.userID, tt.amount).
 				Return(tt.confirmBalanceRepoError).Times(tt.confirmBalanceTimes)
 
 			cfg := &ServiceConfig{
@@ -262,7 +264,7 @@ func TestService_ConfirmReserve(t *testing.T) {
 			}
 			service := NewBalanceService(cfg)
 
-			errReleaseFunds := service.ConfirmReserve(context.Background(), tt.userID, tt.amount)
+			errReleaseFunds := service.ConfirmReserve(context.Background(), *tx, tt.userID, tt.amount)
 
 			assert.Equal(t, tt.expectedError, errReleaseFunds)
 		})

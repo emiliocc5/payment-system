@@ -8,10 +8,10 @@ type Metrics interface {
 	UpdateWalletBalance(walletID, currency string, balance float64)
 
 	RecordTransactionIdempotent(transactionType string)
-	RecordTransactionStarted(transactionType string)
-	RecordTransactionCompleted(transactionType string, success bool)
+	RecordTransactionStarted(transactionType string, success bool)
+	RecordTransactionCompleted(transactionType string, status string)
 	RecordTransactionAmount(transactionType string, amount float64)
-	RecordTransactionProcessingTime(transactionType string, duration time.Duration)
+	RecordTransactionProcessingTime(transactionType, status string, duration time.Duration)
 
 	RecordDatabaseOperationDuration(operation string, duration time.Duration)
 	RecordExternalServiceCall(serviceName string, success bool, duration time.Duration)

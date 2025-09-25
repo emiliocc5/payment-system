@@ -12,12 +12,13 @@ import (
 type BalanceRepository interface {
 	Get(ctx context.Context, userID string) (*domain.Balance, error)
 	Reserve(ctx context.Context, tx pgx.Tx, userID string, amount int64) error
-	Release(ctx context.Context, userID string, amount int64) error
-	Confirm(ctx context.Context, userID string, amount int64) error
+	Release(ctx context.Context, tx pgx.Tx, userID string, amount int64) error
+	Confirm(ctx context.Context, tx pgx.Tx, userID string, amount int64) error
 }
 
+// TODO refactor this to not depend of pgx.TX
 type BalanceService interface {
 	ReserveFunds(ctx context.Context, tx pgx.Tx, userID string, amount int64) error
-	ReleaseFunds(ctx context.Context, userID string, amount int64) error
-	ConfirmReserve(ctx context.Context, userID string, amount int64) error
+	ReleaseFunds(ctx context.Context, tx pgx.Tx, userID string, amount int64) error
+	ConfirmReserve(ctx context.Context, tx pgx.Tx, userID string, amount int64) error
 }
